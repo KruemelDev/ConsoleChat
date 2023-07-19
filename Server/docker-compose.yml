@@ -1,0 +1,18 @@
+version: '3.1'
+services:
+  db:
+    image: mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: spit-preface-inflict-nonsense-hooves-heaven-noted-pitcher-skyway-choice
+    ports:
+      - "3308:3306"
+    volumes:
+      - .consolechat-db:/var/lib/mysql
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin:latest
+    restart: always
+    depends_on:
+      - db
+    ports:
+      - "80:80"
