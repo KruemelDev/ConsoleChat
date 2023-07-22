@@ -1,6 +1,7 @@
 version: '3.1'
 services:
   db:
+    container_name: "console_chat_db"
     image: mysql
     restart: always
     environment:
@@ -10,6 +11,7 @@ services:
     volumes:
       - .consolechat-db:/var/lib/mysql
   phpmyadmin:
+    container_name: "visualize_console_chat_db"
     image: phpmyadmin/phpmyadmin:latest
     restart: always
     depends_on:
