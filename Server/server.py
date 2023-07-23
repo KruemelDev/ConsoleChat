@@ -41,15 +41,15 @@ class Server:
         self.clients[self.client_socket] = self.client_address
         print(self.clients)
         while True:
-            self.msg = self.client_socket.recv(1024)
-            print(self.msg)
-            if not self.msg:
+            msg = self.client_socket.recv(1024)
+            print(msg)
+            if not msg:
                 # Client disconnected
                 break
 
-            print(f"Received message from {self.client_address}: {self.msg.decode('utf-8')}")
+            print(f"Received message from {self.client_address}: {msg.decode('utf-8')}")
 
-            received_data = self.msg.decode('utf-8')
+            received_data = msg.decode('utf-8')
             if received_data.startswith("!signin") or self.signin_process:
                 if received_data.startswith("!signin"):
                     self.signin_process = True
@@ -57,6 +57,11 @@ class Server:
                 json_data = json.loads(received_data)
                 print(json_data)
                 self.signin_process = False
+                if self.check_login_credentials(json_data["username"], json_data["password"]):
+                    self.client_socket.send(bytes("!successful", "utf8"))
+                    self.overwrite_client_adress()
+                else:
+                    self.client_socket.send(bytes("!login failed", "utf8"))
 
             if received_data.startswith("!register") or self.register_process:
                 if received_data.startswith("!register"):
@@ -66,18 +71,20 @@ class Server:
                 print(json_data)
                 self.register_process = False
                 if self.is_user_registered(json_data["username"]):
-                    self.client_socket.send(bytes("!Already taken", "utf8"))
+                    self.client_socket.send(bytes("!already taken", "utf8"))
                 else:
+                    store_thread = threading.Thread(target=self.register_in_db, args=(json_data,))
+                    store_thread.start()
+                    self.client_socket.send(bytes("!successful", "utf8"))
 
-                    # Args cannot be overgiven
-                    store_thread = threading.Thread(target=self.register_in_db(), args=(json_data))
-                    self.client_socket.send(bytes("!Successful", "utf8"))
+    def overwrite_client_adress(self):
+        self.mycursor.execute("INSERT INTO Users (ip, port) VALUES (%s, %s)", (self.client_address[0], self.client_address[1]))
+        self.mydb.commit()
 
-                # store_thread = threading.Thread(target=self.store_in_db())
-                # store_thread.start()
-
-    def is_user_logged_in(self):
-        pass
+    def check_login_credentials(self, username, password):
+        self.mycursor.execute("SELECT * FROM Users WHERE username = %s AND password = %s", (username, password))
+        result = self.mycursor.fetchone()
+        return result is not None
 
     def is_user_registered(self, username):
         self.mycursor.execute("SELECT username FROM Users WHERE username = %s", (username,))
