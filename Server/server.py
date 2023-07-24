@@ -57,6 +57,10 @@ class Server:
                 json_data = json.loads(received_data)
                 print(json_data)
                 self.signin_process = False
+                sus = self.check_login_credentials(json_data["username"], json_data["password"])
+                print(sus)
+                print("Das angekommende passwort ist: ",json_data["password"])
+                print("Der angekommende benutzername ist:", json_data["username"])
                 if self.check_login_credentials(json_data["username"], json_data["password"]):
                     self.client_socket.send(bytes("!successful", "utf8"))
                     self.overwrite_client_adress()
@@ -82,7 +86,9 @@ class Server:
         self.mydb.commit()
 
     def check_login_credentials(self, username, password):
-        self.mycursor.execute("SELECT * FROM Users WHERE username = %s AND password = %s", (username, password))
+        sql_query = "SELECT * FROM Users WHERE username = %s AND password = %s"
+        print("Ausgeführte SQL-Abfrage:", sql_query, (username, password))
+        self.mycursor.execute(sql_query, (username, password))
         result = self.mycursor.fetchone()
         return result is not None
 
@@ -92,6 +98,7 @@ class Server:
         return result is not None
 
     def register_in_db(self, user_credentials):
+        print(user_credentials["password"])
         self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
                               (user_credentials["username"], user_credentials["password"], self.client_address[0], self.client_address[1]))
         self.mydb.commit()
