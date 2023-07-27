@@ -23,7 +23,6 @@ class Client:
         print("Der geesendete benutzer name ist:", login_data["username"])
         print("Der gesendete password name ist:", login_data["password"])
 
-
     def login(self):
         while True:
             check_account = input("Do you already have an account? If you have one type: signin else type: register: ")
@@ -39,7 +38,8 @@ class Client:
 
                 if server_answer == "!successful":
                     print("You are logged in")
-                    threading.Thread(target=self.login_menu, args=(username_input,))
+                    menu_thread = threading.Thread(target=self.login_menu, args=(username_input,))
+                    menu_thread.start()
                     break
                 elif server_answer == "!login failed":
                     print("Your login failed. Please try again")
@@ -59,14 +59,66 @@ class Client:
                     continue
                 elif server_answer == "!successful":
                     print("Your account has been created")
-                    menu_thread = threading.Thread(target=self.login_menu(), args=(username_input,))
+                    menu_thread = threading.Thread(target=self.login_menu, args=(username_input,))
                     menu_thread.start()
                     break
             else:
                 continue
 
     def login_menu(self):
-        pass
+        print("Type !exit to return to menu")
+
+        while True:
+            commands = input("Type chat if you want to chat with a person: ")
+            if commands == "chat":
+                self.client_socket.send(bytes("!chat", "utf8"))
+                while True:
+                    user_to_write = input("Which user would you like to write with: ")
+                    if not user_to_write == "" or None:
+                        encoded_data = bytes(user_to_write, "utf-8")
+                        self.client_socket.send(encoded_data)
+                        server_answer = self.client_socket.recv(1024).decode("utf-8")
+                        print("Server answer:", server_answer)
+                        if server_answer == "!user exists":
+                            self.chat(user_to_write)
+                        else:
+                            print("Sorry, this user does not exist, please enter another user name")
+                            continue
+                    elif user_to_write == "!exit":
+                        break
+
+                    else:
+                        continue
+                continue
+            else:
+                continue
+
+    def chat(self, chat_target):
+        print("This is a chat with: ", chat_target)
+        for i in range(6):
+            print("")
+        receive_target_messages_thread = threading.Thread(target=self.recv_target_messages)
+        receive_target_messages_thread.start()
+        while self.running:
+            message = input("You: ")
+            if message.startswith("!exit"):
+                self.running = False
+
+        print("Please wait a few seconds, the chat will then close")
+        receive_target_messages_thread.join()
+        self.login_menu()
+
+    def recv_target_messages(self):
+        self.client_socket.settimeout(2.5)
+
+        while self.running:
+            try:
+                chat_message_target = self.client_socket.recv(1024).decode("utf-8")
+                yield chat_message_target
+            except socket.timeout:
+                pass
+        self.client_socket.settimeout(None)
+        # Due to the timeout, a few messages cannot be received -> dynamic timeout would be the solution
 
 
 if __name__ == "__main__":
