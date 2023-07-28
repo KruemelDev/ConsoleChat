@@ -17,6 +17,7 @@ class Server:
         self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
         self.mycursor.execute("USE consolechat")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS Users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255), password VARCHAR(255), ip VARCHAR(255), port INT(255))")
+        self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (senderid INT, receiverid INT, message VARCHAR(255))")
         self.set_auto_increment_start_value(100000)
         self.clients = {}
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -60,8 +61,8 @@ class Server:
                 print("Der angekommende benutzername ist: ", json_data["username"])
                 if self.check_login_credentials(json_data["username"], json_data["password"]):
                     client_socket.send(bytes("!successful", "utf8"))
-                    self.overwrite_client_adress(client_adress)
-                    break
+                    self.overwrite_client_adress(client_adress, json_data["username"])
+
                 else:
                     client_socket.send(bytes("!login failed", "utf8"))
 
@@ -78,7 +79,7 @@ class Server:
                     store_thread = threading.Thread(target=self.register_in_db, args=(json_data, client_adress))
                     store_thread.start()
                     client_socket.send(bytes("!successful", "utf8"))
-                    break
+
             print(received_data)
             if received_data.startswith("!chat") or self.target_message_process:
                 print(received_data)
@@ -89,18 +90,23 @@ class Server:
                 print(received_data)
                 if self.is_user_registered(received_data):
                     client_socket.send(bytes("!user exists", "utf8"))
+                else:
+                    client_socket.send(bytes("!user doesnt exist", "utf8"))
+                    continue
 
-                parts = received_data.split("|")
-                sender_id = parts[0]
-                receiver_id = parts[1]
-                message_to_send = "|".join(parts[2:])
+                while True:
+                    msg = client_socket.recv(1024).decode("utf-8")
+                    parts = msg.split("|")
+                    sender_id = parts[0]
+                    receiver_id = parts[1]
+                    message_to_send = "|".join(parts[2:])
 
     def set_auto_increment_start_value(self, start_value):
         query = f"ALTER TABLE Users AUTO_INCREMENT = {start_value};"
         self.mycursor.execute(query)
 
-    def overwrite_client_adress(self, client_adress):
-        self.mycursor.execute("INSERT INTO Users (ip, port) VALUES (%s, %s)", (client_adress[0], client_adress[1]))
+    def overwrite_client_adress(self, client_adress, username):
+        self.mycursor.execute("UPDATE Users SET ip = %s, port = %s WHERE username = %s", (client_adress[0], client_adress[1], username))
         self.mydb.commit()
 
     def check_login_credentials(self, username, password):
@@ -118,7 +124,7 @@ class Server:
     def register_in_db(self, user_credentials, client_adress):
         print(user_credentials["password"])
         self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
-                              (user_credentials["username"], user_credentials["password"], self.client_address[0], self.client_address[1]))
+                              (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
         self.mydb.commit()
 
 

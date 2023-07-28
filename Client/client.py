@@ -9,6 +9,7 @@ class Client:
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_address = ('localhost', 12345)
         self.client_socket.connect(self.server_address)
+        self.running = True
 
     @staticmethod
     def hash_password(password):
@@ -24,6 +25,7 @@ class Client:
         print("Der gesendete password name ist:", login_data["password"])
 
     def login(self):
+        print("Type !quit to quit the program")
         while True:
             check_account = input("Do you already have an account? If you have one type: signin else type: register: ")
             if check_account == "signin":
@@ -32,6 +34,8 @@ class Client:
 
                 username_input = input("Type your username: ")
                 password_input = input("Type your password: ")
+                if username_input == "!quit" or password_input == "!quit":
+                    quit()
                 self.send_to_server_user_credentials(username_input, password_input)
                 server_answer = self.client_socket.recv(1024).decode("utf-8")
                 print(server_answer)
@@ -48,10 +52,13 @@ class Client:
             elif check_account == "register":
                 print()
                 self.client_socket.send(bytes("!register", "utf8"))
-
                 username_input = input("Type a name how your friends will see you: ")
-                password_input = input("Type a password: ")
 
+                while username_input == "!exit":
+                    username_input = input("Type a name how your friends will see you: ")
+                password_input = input("Type a password: ")
+                if username_input == "!quit" or password_input == "!quit":
+                    quit()
                 self.send_to_server_user_credentials(username_input, password_input)
                 server_answer = self.client_socket.recv(1024).decode("utf-8")
                 print(server_answer)
@@ -62,10 +69,12 @@ class Client:
                     menu_thread = threading.Thread(target=self.login_menu, args=(username_input,))
                     menu_thread.start()
                     break
+            elif check_account == "!quit":
+                quit()
             else:
                 continue
 
-    def login_menu(self):
+    def login_menu(self, username):
         print("Type !exit to return to menu")
 
         while True:
@@ -74,28 +83,34 @@ class Client:
                 self.client_socket.send(bytes("!chat", "utf8"))
                 while True:
                     user_to_write = input("Which user would you like to write with: ")
+                    print(user_to_write)
+                    if user_to_write == "!quit":
+                        quit()
                     if not user_to_write == "" or None:
-                        encoded_data = bytes(user_to_write, "utf-8")
-                        self.client_socket.send(encoded_data)
+                        target = bytes(user_to_write, "utf-8")
+                        self.client_socket.send(target)
                         server_answer = self.client_socket.recv(1024).decode("utf-8")
                         print("Server answer:", server_answer)
                         if server_answer == "!user exists":
                             self.chat(user_to_write)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
-                            continue
+                            break
                     elif user_to_write == "!exit":
                         break
 
                     else:
                         continue
+                # Return to menu
                 continue
+            elif commands == "!quit":
+                quit()
             else:
                 continue
 
     def chat(self, chat_target):
         print("This is a chat with: ", chat_target)
-        for i in range(6):
+        for i in range(20):
             print("")
         receive_target_messages_thread = threading.Thread(target=self.recv_target_messages)
         receive_target_messages_thread.start()
@@ -103,7 +118,7 @@ class Client:
             message = input("You: ")
             if message.startswith("!exit"):
                 self.running = False
-
+            self.client_socket.send(bytes(message, "utf8"))
         print("Please wait a few seconds, the chat will then close")
         receive_target_messages_thread.join()
         self.login_menu()
