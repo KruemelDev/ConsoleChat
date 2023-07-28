@@ -17,7 +17,7 @@ class Server:
         self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
         self.mycursor.execute("USE consolechat")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS Users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255), password VARCHAR(255), ip VARCHAR(255), port INT(255))")
-        self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (senderid INT, receiverid INT, message VARCHAR(255))")
+        self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (receiver_id INT, sender_id INT, message VARCHAR(512))")
         self.set_auto_increment_start_value(100000)
         self.clients = {}
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,16 +90,28 @@ class Server:
                 print(received_data)
                 if self.is_user_registered(received_data):
                     client_socket.send(bytes("!user exists", "utf8"))
+                    chat_members = client_socket.recv(1024)
+                    chat_members_decoded = chat_members.decode("utf-8")
+                    chat_members_parts = chat_members_decoded.split("|")
+
+                    target_username = chat_members_parts[0]
+                    username = chat_members_parts[1]
+                    ids = self.get_chat_member_ids(target_username, username)
+                    target_id = ids[0]
+                    sender_id = ids[1]
+                    client_socket.send(bytes(f"{target_id}|{sender_id}", "utf8"))
                 else:
                     client_socket.send(bytes("!user doesnt exist", "utf8"))
                     continue
 
                 while True:
-                    msg = client_socket.recv(1024).decode("utf-8")
-                    parts = msg.split("|")
-                    sender_id = parts[0]
-                    receiver_id = parts[1]
-                    message_to_send = "|".join(parts[2:])
+                    msg = client_socket.recv(512)
+                    msg_decoded = msg.decode("utf-8")
+                    parts = msg_decoded.split("|")
+                    receiver_id = parts[0]
+                    sender_id = parts[1]
+                    message = parts[2]
+                    self.insert_chat_message(receiver_id, sender_id, message)
 
     def set_auto_increment_start_value(self, start_value):
         query = f"ALTER TABLE Users AUTO_INCREMENT = {start_value};"
@@ -110,9 +122,7 @@ class Server:
         self.mydb.commit()
 
     def check_login_credentials(self, username, password):
-        sql_query = "SELECT * FROM Users WHERE username = %s AND password = %s"
-        print("Ausgeführte SQL-Abfrage:", sql_query, (username, password))
-        self.mycursor.execute(sql_query, (username, password))
+        self.mycursor.execute("SELECT * FROM Users WHERE username = %s AND password = %s", (username, password))
         result = self.mycursor.fetchone()
         return result is not None
 
@@ -121,10 +131,23 @@ class Server:
         result = self.mycursor.fetchone()
         return result is not None
 
+    def get_chat_member_ids(self, target_username, username):
+        self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (target_username,))
+        receiver_user_id = self.mycursor.fetchone()
+        self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
+        sender_id = self.mycursor.fetchone()
+        ids = [receiver_user_id[0], sender_id[0]]
+        return ids
+
     def register_in_db(self, user_credentials, client_adress):
         print(user_credentials["password"])
         self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
                               (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
+        self.mydb.commit()
+
+    def insert_chat_message(self, receiver_id, sender_id, message):
+        self.mycursor.execute("INSERT INTO ChatHistory (sender_id = %s, receiver_id = %s, message = %s)",
+                              (sender_id, receiver_id, message))
         self.mydb.commit()
 
 

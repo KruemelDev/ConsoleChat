@@ -10,6 +10,7 @@ class Client:
         self.server_address = ('localhost', 12345)
         self.client_socket.connect(self.server_address)
         self.running = True
+        self.long_message = ""
 
     @staticmethod
     def hash_password(password):
@@ -82,21 +83,31 @@ class Client:
             if commands == "chat":
                 self.client_socket.send(bytes("!chat", "utf8"))
                 while True:
-                    user_to_write = input("Which user would you like to write with: ")
-                    print(user_to_write)
-                    if user_to_write == "!quit":
+                    target_username = input("Which user would you like to write with: ")
+                    print(target_username)
+                    if target_username == "!quit":
                         quit()
-                    if not user_to_write == "" or None:
-                        target = bytes(user_to_write, "utf-8")
-                        self.client_socket.send(target)
+                    if not target_username == "" or None:
+                        target_username = bytes(target_username, "utf-8")
+                        self.client_socket.send(target_username)
                         server_answer = self.client_socket.recv(1024).decode("utf-8")
                         print("Server answer:", server_answer)
                         if server_answer == "!user exists":
-                            self.chat(user_to_write)
+                            chat_members = f"{target_username}|{username}"
+                            print(chat_members)
+                            self.client_socket.send(bytes(chat_members, "utf8"))
+
+                            chat_ids = self.client_socket.recv(1024)
+                            chat_member_ids_decoded = chat_ids.decode("utf-8")
+                            chat_member_ids_parts = chat_member_ids_decoded.split("|")
+
+                            target_id = chat_member_ids_parts[0]
+                            sender_id = chat_member_ids_parts[1]
+                            self.chat(target_username, target_id, sender_id)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
                             break
-                    elif user_to_write == "!exit":
+                    elif target_username == "!exit":
                         break
 
                     else:
@@ -108,17 +119,26 @@ class Client:
             else:
                 continue
 
-    def chat(self, chat_target):
-        print("This is a chat with: ", chat_target)
+    def chat(self, chat_target_name, target_id, sender_id):
+        print("This is a chat with: ", chat_target_name.decode("utf-8"))
         for i in range(20):
             print("")
         receive_target_messages_thread = threading.Thread(target=self.recv_target_messages)
         receive_target_messages_thread.start()
         while self.running:
-            message = input("You: ")
+            if self.long_message == "":
+                message = input(f"You: ")
+            else:
+                print(f"This message was not send: {self.long_message}")
+                message = input(f"You: {self.long_message}")
+            if len(message) > 512:
+                print("Your message is too long")
+                self.long_message = message
+            elif message == "":
+                continue
             if message.startswith("!exit"):
                 self.running = False
-            self.client_socket.send(bytes(message, "utf8"))
+            self.client_socket.send(bytes(f"{target_id}|{sender_id}|{message}", "utf8"))
         print("Please wait a few seconds, the chat will then close")
         receive_target_messages_thread.join()
         self.login_menu()
