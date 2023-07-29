@@ -29,12 +29,15 @@ class Server:
         self.signin_process = False
         self.target_message_process = False
 
+        self.connections = {}
+
     def start_server(self):
         while True:
             client_socket, client_adress = self.server_socket.accept()
             print(f"Connection established from {client_adress}")
             self.clients[client_socket] = client_adress
             print(self.clients)
+
             handle_thread = threading.Thread(target=self.handle_client, args=(client_socket, client_adress))
             handle_thread.start()
 
@@ -46,7 +49,6 @@ class Server:
             print(msg)
             if not msg:
                 break
-
             print(f"Received message from {client_adress}: {msg.decode('utf-8')}")
 
             received_data = msg.decode('utf-8')
@@ -62,6 +64,7 @@ class Server:
                 if self.check_login_credentials(json_data["username"], json_data["password"]):
                     client_socket.send(bytes("!successful", "utf8"))
                     self.overwrite_client_adress(client_adress, json_data["username"])
+                    self.connections[f"{json_data['username']}"] = client_socket
 
                 else:
                     client_socket.send(bytes("!login failed", "utf8"))
@@ -79,6 +82,7 @@ class Server:
                     store_thread = threading.Thread(target=self.register_in_db, args=(json_data, client_adress))
                     store_thread.start()
                     client_socket.send(bytes("!successful", "utf8"))
+                    self.connections[f"{json_data['username']}"] = client_socket
 
             print(received_data)
             if received_data.startswith("!chat") or self.target_message_process:
@@ -149,14 +153,26 @@ class Server:
                               (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
         self.mydb.commit()
 
+    def send_message_to_target(self, receiver_id, sender_id, message):
+        # self.mycursor.execute("SELECT ip FROM Users WHERE id = %s", (receiver_id,))
+        # ip = self.mycursor.fetchone()
+        # self.mycursor.execute("SELECT ip FROM Users WHERE port = %s", (receiver_id,))
+        # port = self.mycursor.fetchone()
+        self.mycursor.execute("SELECT username FROM Users WHERE id = %s", (receiver_id,))
+        username = self.mycursor.fetchone()
+        print(self.connections[username].items())
+        socket_to_send = self.connections[username].items()
+        print("send to target")
+        socket_to_send.send(bytes(message, "utf8"))
+
     def insert_chat_message(self, receiver_id, sender_id, message):
         self.mycursor.execute("INSERT INTO ChatHistory (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
                               (sender_id, receiver_id, message))
         self.mydb.commit()
+        message_to_target_thread = threading.Thread(target=self.send_message_to_target, args=(receiver_id, sender_id, message))
+        message_to_target_thread.start()
 
 
 if __name__ == "__main__":
     server = Server()
     server.start_server()
-
-# This just works for one person at once at the moment

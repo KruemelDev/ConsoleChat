@@ -11,6 +11,7 @@ class Client:
         self.client_socket.connect(self.server_address)
         self.running = True
         self.long_message = ""
+        self.received_messages = []
 
     @staticmethod
     def hash_password(password):
@@ -124,9 +125,10 @@ class Client:
         print("This is a chat with: ", chat_target_name)
         for i in range(20):
             print("")
-        receive_target_messages_thread = threading.Thread(target=self.recv_target_messages)
+        receive_target_messages_thread = threading.Thread(target=self.get_return_value_of_recv_target_messages)
         receive_target_messages_thread.start()
         while self.running:
+            print(f"{chat_target_name}: ", self.received_messages[0])
             if self.long_message == "":
                 message = input(f"You: ")
             else:
@@ -149,12 +151,18 @@ class Client:
 
         while self.running:
             try:
-                chat_message_target = self.client_socket.recv(1024).decode("utf-8")
+                chat_message_target = self.client_socket.recv(640).decode("utf-8")
                 yield chat_message_target
             except socket.timeout:
                 pass
         self.client_socket.settimeout(None)
         # Due to the timeout, a few messages cannot be received -> dynamic timeout would be the solution
+
+    def get_return_value_of_recv_target_messages(self):
+        while True:
+            message = self.recv_target_messages()
+            # Ich weiß nicht ob dass schnell genug ist, damit die nachricht nicht überschrieben wird von der nächsten
+            self.received_messages.insert(0, message)
 
 
 if __name__ == "__main__":
