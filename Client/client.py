@@ -88,8 +88,8 @@ class Client:
                     if target_username == "!quit":
                         quit()
                     if not target_username == "" or None:
-                        target_username = bytes(target_username, "utf-8")
-                        self.client_socket.send(target_username)
+
+                        self.client_socket.send(bytes(target_username, "utf-8"))
                         server_answer = self.client_socket.recv(1024).decode("utf-8")
                         print("Server answer:", server_answer)
                         if server_answer == "!user exists":
@@ -103,6 +103,7 @@ class Client:
 
                             target_id = chat_member_ids_parts[0]
                             sender_id = chat_member_ids_parts[1]
+                            print(chat_member_ids_parts)
                             self.chat(target_username, target_id, sender_id)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
@@ -120,7 +121,7 @@ class Client:
                 continue
 
     def chat(self, chat_target_name, target_id, sender_id):
-        print("This is a chat with: ", chat_target_name.decode("utf-8"))
+        print("This is a chat with: ", chat_target_name)
         for i in range(20):
             print("")
         receive_target_messages_thread = threading.Thread(target=self.recv_target_messages)

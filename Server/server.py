@@ -17,7 +17,7 @@ class Server:
         self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
         self.mycursor.execute("USE consolechat")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS Users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255), password VARCHAR(255), ip VARCHAR(255), port INT(255))")
-        self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (receiver_id INT, sender_id INT, message VARCHAR(512))")
+        self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (id INT AUTO_INCREMENT PRIMARY KEY, receiver_id INT, sender_id INT, message VARCHAR(512))")
         self.set_auto_increment_start_value(100000)
         self.clients = {}
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -95,6 +95,7 @@ class Server:
                     chat_members_parts = chat_members_decoded.split("|")
 
                     target_username = chat_members_parts[0]
+                    print(target_username)
                     username = chat_members_parts[1]
                     ids = self.get_chat_member_ids(target_username, username)
                     target_id = ids[0]
@@ -108,8 +109,8 @@ class Server:
                     msg = client_socket.recv(512)
                     msg_decoded = msg.decode("utf-8")
                     parts = msg_decoded.split("|")
-                    receiver_id = parts[0]
-                    sender_id = parts[1]
+                    receiver_id = int(parts[0].strip("()").rstrip(','))
+                    sender_id = int(parts[1].strip("()").rstrip(','))
                     message = parts[2]
                     self.insert_chat_message(receiver_id, sender_id, message)
 
@@ -132,11 +133,14 @@ class Server:
         return result is not None
 
     def get_chat_member_ids(self, target_username, username):
+        print(target_username)
         self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (target_username,))
         receiver_user_id = self.mycursor.fetchone()
+        print(receiver_user_id)
         self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
         sender_id = self.mycursor.fetchone()
-        ids = [receiver_user_id[0], sender_id[0]]
+        print(receiver_user_id)
+        ids = [receiver_user_id, sender_id]
         return ids
 
     def register_in_db(self, user_credentials, client_adress):
@@ -146,7 +150,7 @@ class Server:
         self.mydb.commit()
 
     def insert_chat_message(self, receiver_id, sender_id, message):
-        self.mycursor.execute("INSERT INTO ChatHistory (sender_id = %s, receiver_id = %s, message = %s)",
+        self.mycursor.execute("INSERT INTO ChatHistory (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
                               (sender_id, receiver_id, message))
         self.mydb.commit()
 
