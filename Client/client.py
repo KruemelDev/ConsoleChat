@@ -2,16 +2,16 @@ import socket
 import threading
 import hashlib
 import json
+import tkinter
 
 
 class Client:
     def __init__(self):
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_address = ('localhost', 12345)
+        self.server_address = ('192.168.66.58', 12345)
         self.client_socket.connect(self.server_address)
         self.running = True
         self.long_message = ""
-        self.received_messages = []
 
     @staticmethod
     def hash_password(password):
@@ -125,10 +125,10 @@ class Client:
         print("This is a chat with: ", chat_target_name)
         for i in range(20):
             print("")
-        receive_target_messages_thread = threading.Thread(target=self.get_return_value_of_recv_target_messages)
+        receive_target_messages_thread = threading.Thread(target=self.recv_messages, args=(chat_target_name,))
         receive_target_messages_thread.start()
         while self.running:
-            print(f"{chat_target_name}: ", self.received_messages[0])
+            print(f"{chat_target_name}: ")
             if self.long_message == "":
                 message = input(f"You: ")
             else:
@@ -146,23 +146,17 @@ class Client:
         receive_target_messages_thread.join()
         self.login_menu()
 
-    def recv_target_messages(self):
+    def recv_messages(self, chat_target_name):
         self.client_socket.settimeout(2.5)
 
         while self.running:
             try:
-                chat_message_target = self.client_socket.recv(640).decode("utf-8")
-                yield chat_message_target
+                chat_message = self.client_socket.recv(640).decode("utf-8")
+                print(f"{chat_target_name}: ", chat_message)
             except socket.timeout:
                 pass
         self.client_socket.settimeout(None)
         # Due to the timeout, a few messages cannot be received -> dynamic timeout would be the solution
-
-    def get_return_value_of_recv_target_messages(self):
-        while True:
-            message = self.recv_target_messages()
-            # Ich weiß nicht ob dass schnell genug ist, damit die nachricht nicht überschrieben wird von der nächsten
-            self.received_messages.insert(0, message)
 
 
 if __name__ == "__main__":
