@@ -120,35 +120,50 @@ class Server:
         self.mycursor.execute(query)
 
     def overwrite_client_adress(self, client_adress, username):
+        lock = threading.Lock()
+        lock.acquire()
         self.mycursor.execute("UPDATE Users SET ip = %s, port = %s WHERE username = %s", (client_adress[0], client_adress[1], username))
         self.mydb.commit()
+        lock.release()
 
     def check_login_credentials(self, username, password):
+        lock = threading.Lock()
+        lock.acquire()
         self.mycursor.execute("SELECT * FROM Users WHERE username = %s AND password = %s", (username, password))
         result = self.mycursor.fetchone()
+        lock.release()
         return result is not None
 
     def is_user_registered(self, username):
+        lock = threading.Lock()
+        lock.acquire()
         self.mycursor.execute("SELECT username FROM Users WHERE username = %s", (username,))
         result = self.mycursor.fetchone()
+        lock.release()
         return result is not None
 
     def get_chat_member_ids(self, target_username, username):
         print(target_username)
+        lock = threading.Lock()
+        lock.acquire()
         self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (target_username,))
         receiver_user_id = self.mycursor.fetchone()
         print(receiver_user_id)
         self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
         sender_id = self.mycursor.fetchone()
+        lock.release()
         print(receiver_user_id)
         ids = [receiver_user_id, sender_id]
         return ids
 
     def register_in_db(self, user_credentials, client_adress):
         print(user_credentials["password"])
+        lock = threading.Lock()
+        lock.acquire()
         self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
                               (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
         self.mydb.commit()
+        lock.release()
 
     def send_message_to_target(self, sender_id, receiver_id, client_socket):
         while True:
@@ -168,9 +183,12 @@ class Server:
                     pass
 
     def insert_chat_message(self, receiver_id, sender_id, message, client_socket):
+        lock = threading.Lock()
+        lock.acquire()
         self.mycursor.execute("INSERT INTO ChatStorage (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
                               (sender_id, receiver_id, message))
         self.mydb.commit()
+        lock.release()
         message_to_target_thread = threading.Thread(target=self.send_message_to_target, args=(sender_id, receiver_id, client_socket))
         message_to_target_thread.start()
 

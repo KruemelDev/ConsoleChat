@@ -105,7 +105,7 @@ class Client:
                             target_id = chat_member_ids_parts[0]
                             sender_id = chat_member_ids_parts[1]
                             print(chat_member_ids_parts)
-                            self.chat(target_username, target_id, sender_id)
+                            self.chat(target_username, target_id, sender_id, username)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
                             break
@@ -121,7 +121,7 @@ class Client:
             else:
                 continue
 
-    def chat(self, chat_target_name, target_id, sender_id):
+    def chat(self, chat_target_name, target_id, sender_id, username):
         print("This is a chat with: ", chat_target_name)
         for i in range(20):
             print("")
@@ -129,22 +129,15 @@ class Client:
         receive_target_messages_thread.start()
         while self.running:
             print(f"{chat_target_name}: ")
-            if self.long_message == "":
-                message = input(f"You: ")
-            else:
-                print(f"This message was not send: {self.long_message}")
-                message = input(f"You: {self.long_message}")
-            if len(message) > 512:
-                print("Your message is too long")
-                self.long_message = message
-            elif message == "":
+            message = input(f"You: ")
+            if message == "":
                 continue
             if message.startswith("!exit"):
                 self.running = False
             self.client_socket.send(bytes(f"{target_id}|{sender_id}|{message}", "utf8"))
         print("Please wait a few seconds, the chat will then close")
         receive_target_messages_thread.join()
-        self.login_menu()
+        self.login_menu(username)
 
     def recv_messages(self, chat_target_name):
         self.client_socket.settimeout(2.5)
@@ -152,7 +145,8 @@ class Client:
         while self.running:
             try:
                 chat_message = self.client_socket.recv(640).decode("utf-8")
-                print(f"{chat_target_name}: ", chat_message)
+                if not chat_message == "":
+                    print(f"{chat_target_name}: ", chat_message)
             except socket.timeout:
                 pass
         self.client_socket.settimeout(None)
