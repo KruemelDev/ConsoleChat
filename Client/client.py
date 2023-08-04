@@ -152,18 +152,19 @@ class Client:
     def recv_messages(self, chat_target_name):
         while self.running:
             try:
-                chat_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                chat_socket.accept()
-                chat_message = chat_socket.recv(640)
+
+                chat_message = self.client_socket.recv(640)
                 chat_message_decoded = chat_message.decode("utf8")
                 if not chat_message:
-                    chat_socket.close()
                     print("Disconnected")
                     break
                 if chat_message_decoded == "":
                     continue
+                if chat_message_decoded.startswith("server: "):
+                    print(f"\n{chat_message_decoded}")
+                    continue
                 if chat_message_decoded:
-                    print(f"{chat_target_name}: {chat_message_decoded}")
+                    print(f"\n{chat_target_name}: {chat_message_decoded}")
             except socket.timeout:
                 pass
 

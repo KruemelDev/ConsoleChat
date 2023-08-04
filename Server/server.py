@@ -2,7 +2,6 @@ import socket
 import mysql.connector
 import threading
 import json
-import queue
 
 
 class Server:
@@ -62,7 +61,7 @@ class Server:
                 json_data = json.loads(received_data)
                 print(json_data)
                 self.signin_process = False
-                print("Das angekommende passwort ist: ",json_data["password"])
+                print("Das angekommende passwort ist: ", json_data["password"])
                 print("Der angekommende benutzername ist: ", json_data["username"])
                 if self.check_login_credentials(json_data["username"], json_data["password"]):
                     client_socket.send(bytes("!successful", "utf8"))
@@ -116,6 +115,11 @@ class Server:
 
                 while True:
                     msg = client_socket.recv(512)
+                    if not msg:
+                        client_id = self.client_id[client_socket]
+                        del self.clients[client_id]
+                        client_socket.close()
+                        break
                     msg_decoded = msg.decode("utf-8")
                     parts = msg_decoded.split("|")
                     print("länge von parts", len(parts))
@@ -189,21 +193,34 @@ class Server:
     def get_user_id(self, username):
         self.mycursor.execute("SELECT id FROM Users WHERE %s = username", (username,))
         identifier = self.mycursor.fetchone()
+        identifier = str(identifier).strip("(), ")
         print("client id is:", identifier)
         return identifier
 
-    def send_message_to_target(self, receiver_id, message):
-        receiver = self.clients[receiver_id]
-        receiver.send(bytes(message, "utf8"))
+    def send_message_to_target(self, receiver_id, sender_id, message):
+        print("receiver id: ", receiver_id)
+        print("keys", self.clients.keys())
+        try:
+            receiver = self.clients[str(receiver_id)]
+            print(receiver)
+            receiver.send(bytes(message, "utf8"))
+        except KeyError as e:
+            print(e)
+            try:
+                sender = self.clients[str(sender_id)]
+                sender.send(bytes("server: Your partner is offline", "utf8"))
+            except KeyError as e:
+                print(e)
 
     def insert_chat_message(self, receiver_id, sender_id, message):
         lock = threading.Lock()
         lock.acquire()
+        print(message)
         self.mycursor.execute("INSERT INTO ChatHistory (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
                               (sender_id, receiver_id, message))
         self.mydb.commit()
         lock.release()
-        self.send_message_to_target(receiver_id, message)
+        self.send_message_to_target(receiver_id, sender_id, message)
 
 
 if __name__ == "__main__":
