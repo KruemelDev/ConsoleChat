@@ -6,12 +6,26 @@ import json
 
 class Server:
     def __init__(self):
-        self.mydb = mysql.connector.connect(
-            host="localhost",
-            port="3308",
-            user="root",
-            passwd="spit-preface-inflict-nonsense-hooves-heaven-noted-pitcher-skyway-choice"
-        )
+        db_password = input("Enter you db password to connect to the database: ")
+        while True:
+            port = input("Specify the port where the socket should run: ")
+            try:
+                self.port_to_int = int(port)
+                if self.port_to_int < 65535:
+                    break
+                elif self.port_to_int > 1023:
+                    continue
+            except ValueError as e:
+                print(e)
+        try:
+            self.mydb = mysql.connector.connect(
+                host="localhost",
+                port="3308",
+                user="root",
+                passwd=f"{db_password}"
+            )
+        except mysql.connector.errors as e:
+            print(e)
 
         self.mycursor = self.mydb.cursor(buffered=True)
         self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
@@ -20,9 +34,10 @@ class Server:
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (id INT AUTO_INCREMENT PRIMARY KEY, receiver_id INT, sender_id INT, message VARCHAR(512))")
         self.set_auto_increment_start_value(100000)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.port = 22225
+        self.hostname = socket.gethostname()
         try:
-            self.server_address = ('192.168.66.58', self.port)
+            print(socket.gethostbyname(self.hostname))
+            self.server_address = (socket.gethostbyname(self.hostname), self.port_to_int)
             self.server_socket.bind(self.server_address)
             self.server_socket.listen(6)
         except OSError as e:

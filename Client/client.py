@@ -6,10 +6,22 @@ import json
 
 class Client:
     def __init__(self):
+        ip = input("Enter the ip adress of your server: ")
+        while True:
+            port = input("Enter the port where the socket is running: ")
+            try:
+                self.port_to_int = int(port)
+                if self.port_to_int < 65535:
+                    break
+                elif self.port_to_int > 1023:
+                    continue
+            except ValueError as e:
+                print(e)
         while True:
             try:
+
                 self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                self.server_address = ('192.168.66.58', 22225)
+                self.server_address = (ip, self.port_to_int)
                 self.client_socket.connect(self.server_address)
                 break
             except ConnectionRefusedError:
@@ -28,8 +40,6 @@ class Client:
         login_data = {"username": username, "password": hashed_password}
         json_data = json.dumps(login_data)
         self.client_socket.send(json_data.encode("utf8"))
-        print("Der geesendete benutzer name ist:", login_data["username"])
-        print("Der gesendete password name ist:", login_data["password"])
 
     def login(self):
         print("Type !quit to quit the program")
@@ -45,7 +55,6 @@ class Client:
                     quit()
                 self.send_to_server_user_credentials(username_input, password_input)
                 server_answer = self.client_socket.recv(1024).decode("utf-8")
-                print(server_answer)
 
                 if server_answer == "!successful":
                     print("You are logged in")
@@ -68,7 +77,6 @@ class Client:
                     quit()
                 self.send_to_server_user_credentials(username_input, password_input)
                 server_answer = self.client_socket.recv(1024).decode("utf-8")
-                print(server_answer)
                 if server_answer == "!already taken":
                     continue
                 elif server_answer == "!successful":
@@ -90,17 +98,14 @@ class Client:
                 self.client_socket.send(bytes("!chat", "utf8"))
                 while True:
                     target_username = input("Which user would you like to write with: ")
-                    print(target_username)
                     if target_username == "!quit":
                         quit()
                     if not target_username == "" or None:
 
                         self.client_socket.send(bytes(target_username, "utf-8"))
                         server_answer = self.client_socket.recv(1024).decode("utf-8")
-                        print("Server answer:", server_answer)
                         if server_answer == "!user exists":
                             chat_members = f"{target_username}|{username}"
-                            print(chat_members)
                             self.client_socket.send(bytes(chat_members, "utf8"))
 
                             chat_ids = self.client_socket.recv(1024)
@@ -109,7 +114,6 @@ class Client:
 
                             target_id = chat_member_ids_parts[0]
                             sender_id = chat_member_ids_parts[1]
-                            print(chat_member_ids_parts)
                             self.chat(target_username, target_id, sender_id, username)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
@@ -167,8 +171,6 @@ class Client:
                     print(f"\n{chat_target_name}: {chat_message_decoded}")
             except socket.timeout:
                 pass
-
-        # Due to the timeout, a few messages cannot be received -> dynamic timeout would be the solution
 
 
 if __name__ == "__main__":
