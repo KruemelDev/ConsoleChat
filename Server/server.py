@@ -2,7 +2,7 @@ import socket
 import mysql.connector
 import threading
 import json
-import time
+import queue
 
 
 class Server:
@@ -18,18 +18,22 @@ class Server:
         self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
         self.mycursor.execute("USE consolechat")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS Users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255), password VARCHAR(255), ip VARCHAR(255), port INT(255))")
-        self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatStorage (id INT AUTO_INCREMENT PRIMARY KEY, receiver_id INT, sender_id INT, message VARCHAR(512))")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (id INT AUTO_INCREMENT PRIMARY KEY, receiver_id INT, sender_id INT, message VARCHAR(512))")
         self.set_auto_increment_start_value(100000)
-        self.clients = {}
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_address = ('192.168.66.58', 12345)
-        self.server_socket.bind(self.server_address)
-        self.server_socket.listen(6)
-
+        self.port = 22225
+        try:
+            self.server_address = ('192.168.66.58', self.port)
+            self.server_socket.bind(self.server_address)
+            self.server_socket.listen(6)
+        except OSError as e:
+            print(e)
         self.register_process = False
         self.signin_process = False
         self.target_message_process = False
+
+        self.clients = {}
+        self.client_id = {}
 
     def start_server(self):
         while True:
@@ -47,8 +51,7 @@ class Server:
         while True:
             msg = client_socket.recv(1024)
             print(msg)
-            if not msg:
-                break
+
             print(f"Received message from {client_adress}: {msg.decode('utf-8')}")
 
             received_data = msg.decode('utf-8')
@@ -64,6 +67,8 @@ class Server:
                 if self.check_login_credentials(json_data["username"], json_data["password"]):
                     client_socket.send(bytes("!successful", "utf8"))
                     self.overwrite_client_adress(client_adress, json_data["username"])
+                    client_id = self.get_user_id(json_data["username"])
+                    self.clients[client_id] = client_socket
                 else:
                     client_socket.send(bytes("!login failed", "utf8"))
 
@@ -80,6 +85,9 @@ class Server:
                     store_thread = threading.Thread(target=self.register_in_db, args=(json_data, client_adress))
                     store_thread.start()
                     client_socket.send(bytes("!successful", "utf8"))
+                    client_id = self.get_user_id(json_data["username"])
+                    self.clients[client_id] = client_socket
+                    self.client_id[client_socket] = client_id
 
             print(received_data)
             if received_data.startswith("!chat") or self.target_message_process:
@@ -110,10 +118,19 @@ class Server:
                     msg = client_socket.recv(512)
                     msg_decoded = msg.decode("utf-8")
                     parts = msg_decoded.split("|")
+                    print("länge von parts", len(parts))
+                    if len(parts) != 3:
+                        client_socket.close()
                     receiver_id = int(parts[0].strip("()").rstrip(','))
                     client_id = int(parts[1].strip("()").rstrip(','))
                     message = parts[2]
-                    self.insert_chat_message(receiver_id, client_id, message, client_socket)
+                    self.insert_chat_message(receiver_id, client_id, message)
+
+            if not msg:
+                client_id = self.client_id[client_socket]
+                del self.clients[client_id]
+                client_socket.close()
+                break
 
     def set_auto_increment_start_value(self, start_value):
         query = f"ALTER TABLE Users AUTO_INCREMENT = {start_value};"
@@ -129,10 +146,14 @@ class Server:
     def check_login_credentials(self, username, password):
         lock = threading.Lock()
         lock.acquire()
-        self.mycursor.execute("SELECT * FROM Users WHERE username = %s AND password = %s", (username, password))
-        result = self.mycursor.fetchone()
-        lock.release()
-        return result is not None
+        while True:
+            try:
+                self.mycursor.execute("SELECT * FROM Users WHERE username = %s AND password = %s", (username, password))
+                result = self.mycursor.fetchone()
+                lock.release()
+                return result is not None
+            except mysql.connector.errors.OperationalError:
+                continue
 
     def is_user_registered(self, username):
         lock = threading.Lock()
@@ -165,32 +186,24 @@ class Server:
         self.mydb.commit()
         lock.release()
 
-    def send_message_to_target(self, sender_id, receiver_id, client_socket):
-        while True:
-            self.mycursor.execute("SELECT message FROM ChatStorage WHERE receiver_id = %s", (sender_id,))
-            message_to_send = self.mycursor.fetchone()
-            if message_to_send is None:
-                time.sleep(1.5)
-                continue
-            else:
-                try:
-                    client_socket.send(bytes(str(message_to_send), "utf8"))
-                    self.mycursor.execute("INSERT INTO ChatHistory (sender_id, receiver_id, message) SELECT sender_id, receiver_id, message FROM ChatStorage WHERE receiver_id = %s", (receiver_id,))
-                    self.mycursor.execute("DELETE FROM ChatStorage WHERE receiver_id = %s;", (sender_id,))
-                    self.mydb.commit()
-                    time.sleep(1.5)
-                except Exception:
-                    pass
+    def get_user_id(self, username):
+        self.mycursor.execute("SELECT id FROM Users WHERE %s = username", (username,))
+        identifier = self.mycursor.fetchone()
+        print("client id is:", identifier)
+        return identifier
 
-    def insert_chat_message(self, receiver_id, sender_id, message, client_socket):
+    def send_message_to_target(self, receiver_id, message):
+        receiver = self.clients[receiver_id]
+        receiver.send(bytes(message, "utf8"))
+
+    def insert_chat_message(self, receiver_id, sender_id, message):
         lock = threading.Lock()
         lock.acquire()
-        self.mycursor.execute("INSERT INTO ChatStorage (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
+        self.mycursor.execute("INSERT INTO ChatHistory (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
                               (sender_id, receiver_id, message))
         self.mydb.commit()
         lock.release()
-        message_to_target_thread = threading.Thread(target=self.send_message_to_target, args=(sender_id, receiver_id, client_socket))
-        message_to_target_thread.start()
+        self.send_message_to_target(receiver_id, message)
 
 
 if __name__ == "__main__":

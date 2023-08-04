@@ -2,14 +2,19 @@ import socket
 import threading
 import hashlib
 import json
-import tkinter
 
 
 class Client:
     def __init__(self):
-        self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.server_address = ('192.168.66.58', 12345)
-        self.client_socket.connect(self.server_address)
+        while True:
+            try:
+                self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                self.server_address = ('192.168.66.58', 22225)
+                self.client_socket.connect(self.server_address)
+                break
+            except ConnectionRefusedError:
+                print("Connection refused")
+                quit()
         self.running = True
         self.long_message = ""
 
@@ -122,34 +127,46 @@ class Client:
                 continue
 
     def chat(self, chat_target_name, target_id, sender_id, username):
-        print("This is a chat with: ", chat_target_name)
+        print("This is a chat with:", chat_target_name)
         for i in range(20):
             print("")
         receive_target_messages_thread = threading.Thread(target=self.recv_messages, args=(chat_target_name,))
         receive_target_messages_thread.start()
+
         while self.running:
-            print(f"{chat_target_name}: ")
-            message = input(f"You: ")
-            if message == "":
-                continue
-            if message.startswith("!exit"):
-                self.running = False
-            self.client_socket.send(bytes(f"{target_id}|{sender_id}|{message}", "utf8"))
+            if self.running:
+                message = input(f"You to {chat_target_name}: ")
+                if message == "":
+                    continue
+                if message.startswith("!exit"):
+                    self.running = False
+                try:
+                    self.client_socket.send(bytes(f"{target_id}|{sender_id}|{message}", "utf8"))
+                except BrokenPipeError:
+                    continue
+
         print("Please wait a few seconds, the chat will then close")
         receive_target_messages_thread.join()
         self.login_menu(username)
 
     def recv_messages(self, chat_target_name):
-        self.client_socket.settimeout(2.5)
-
         while self.running:
             try:
-                chat_message = self.client_socket.recv(640).decode("utf-8")
-                if not chat_message == "":
-                    print(f"{chat_target_name}: ", chat_message)
+                chat_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                chat_socket.accept()
+                chat_message = chat_socket.recv(640)
+                chat_message_decoded = chat_message.decode("utf8")
+                if not chat_message:
+                    chat_socket.close()
+                    print("Disconnected")
+                    break
+                if chat_message_decoded == "":
+                    continue
+                if chat_message_decoded:
+                    print(f"{chat_target_name}: {chat_message_decoded}")
             except socket.timeout:
                 pass
-        self.client_socket.settimeout(None)
+
         # Due to the timeout, a few messages cannot be received -> dynamic timeout would be the solution
 
 
