@@ -1,9 +1,9 @@
 # ConsoleChat
 ## Content in development -> errors may occur
 
-With this program you can connect to your self-hosted server and communicate with the other clients that are connected.
-As you host your server, you are responsible for the content and security.
-This messanger is not recommended for sending confidential data, such as passwords, etc. over it.
+With this program you can connect to your self-hosted server and communicate with the other clients that are connected.<br>
+As you host your server, you are responsible for the content and security.<br>
+This messanger is not recommended for sending confidential data, such as passwords, etc. over it.<br>
 
 ## Functions
 
