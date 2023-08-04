@@ -35,12 +35,15 @@ class Server:
         self.set_auto_increment_start_value(100000)
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.hostname = socket.gethostname()
+        amount_clients = input("Specify how many clients can connect at the same time: ")
         try:
             print(socket.gethostbyname(self.hostname))
             self.server_address = (socket.gethostbyname(self.hostname), self.port_to_int)
             self.server_socket.bind(self.server_address)
-            self.server_socket.listen(6)
+            self.server_socket.listen(int(amount_clients))
         except OSError as e:
+            print(e)
+        except ValueError as e:
             print(e)
 
         self.clients = {}
