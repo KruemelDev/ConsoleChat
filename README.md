@@ -14,7 +14,7 @@ This messanger is not recommended for sending confidential data, such as passwor
 
 - Make sure python is installed
 - You need to install docker and docker-compose on your system
-- Run the docker deamon
+- Run the docker demon
 - Once docker and docker-compose are installed, run the file docker-compose.yml in the Server folder with this command:<br> ```` docker-compose up -d ````
   
 -  ## Install packages
