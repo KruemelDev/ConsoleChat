@@ -27,9 +27,6 @@ class Server:
             self.server_socket.listen(6)
         except OSError as e:
             print(e)
-        self.register_process = False
-        self.signin_process = False
-        self.target_message_process = False
 
         self.clients = {}
         self.client_id = {}
@@ -54,87 +51,114 @@ class Server:
             print(f"Received message from {client_adress}: {msg.decode('utf-8')}")
 
             received_data = msg.decode('utf-8')
-            if received_data.startswith("!signin") or self.signin_process:
-                if received_data.startswith("!signin"):
-                    self.signin_process = True
-                    continue
-                json_data = json.loads(received_data)
-                print(json_data)
-                self.signin_process = False
-                print("Das angekommende passwort ist: ", json_data["password"])
-                print("Der angekommende benutzername ist: ", json_data["username"])
-                if self.check_login_credentials(json_data["username"], json_data["password"]):
-                    client_socket.send(bytes("!successful", "utf8"))
-                    self.overwrite_client_adress(client_adress, json_data["username"])
-                    client_id = self.get_user_id(json_data["username"])
-                    self.clients[client_id] = client_socket
+            if received_data.startswith("!signin"):
+                signin_credentials = client_socket.recv(1024)
+                if self.check_client_is_online(client_socket, signin_credentials):
+                    signin_credentials_decoded = signin_credentials.decode("utf-8")
+                    json_data = json.loads(signin_credentials_decoded)
+                    print(json_data)
+                    print("Das angekommende passwort ist: ", json_data["password"])
+                    print("Der angekommende benutzername ist: ", json_data["username"])
+                    if self.check_login_credentials(json_data["username"], json_data["password"]):
+                        try:
+                            client_socket.send(bytes("!successful", "utf8"))
+                        except Exception:
+                            print("Cannot send answer")
+                        self.overwrite_client_adress(client_adress, json_data["username"])
+                        client_id = self.get_user_id(json_data["username"])
+                        self.clients[client_id] = client_socket
+                    else:
+                        try:
+                            client_socket.send(bytes("!login failed", "utf8"))
+                        except Exception:
+                            print("Cannot send answer")
                 else:
-                    client_socket.send(bytes("!login failed", "utf8"))
+                    break
 
-            if received_data.startswith("!register") or self.register_process:
-                if received_data.startswith("!register"):
-                    self.register_process = True
-                    continue
-                json_data = json.loads(received_data)
-                print(json_data)
-                self.register_process = False
-                if self.is_user_registered(json_data["username"]):
-                    client_socket.send(bytes("!already taken", "utf8"))
+            if received_data.startswith("!register"):
+                check_register_credentials = client_socket.recv(1024)
+                if self.check_client_is_online(client_socket, check_register_credentials):
+                    json_data = json.loads(check_register_credentials)
+                    print(json_data)
+                    if self.is_user_registered(json_data["username"]):
+                        try:
+                            client_socket.send(bytes("!already taken", "utf8"))
+                        except Exception:
+                            print("cannot send answer")
+                    else:
+                        store_thread = threading.Thread(target=self.register_in_db, args=(json_data, client_adress))
+                        store_thread.start()
+                        try:
+                            client_socket.send(bytes("!successful", "utf8"))
+                        except Exception:
+                            print("Cannot send answer")
+                        client_id = self.get_user_id(json_data["username"])
+                        self.clients[client_id] = client_socket
+                        self.client_id[client_socket] = client_id
                 else:
-                    store_thread = threading.Thread(target=self.register_in_db, args=(json_data, client_adress))
-                    store_thread.start()
-                    client_socket.send(bytes("!successful", "utf8"))
-                    client_id = self.get_user_id(json_data["username"])
-                    self.clients[client_id] = client_socket
-                    self.client_id[client_socket] = client_id
+                    break
 
             print(received_data)
-            if received_data.startswith("!chat") or self.target_message_process:
-                print(received_data)
-                if received_data.startswith("!chat"):
-                    self.target_message_process = True
-                    continue
-                self.target_message_process = False
-                print(received_data)
-                if self.is_user_registered(received_data):
-                    client_socket.send(bytes("!user exists", "utf8"))
-                    chat_members = client_socket.recv(1024)
-                    chat_members_decoded = chat_members.decode("utf-8")
-                    chat_members_parts = chat_members_decoded.split("|")
+            if received_data.startswith("!chat"):
+                message_partner = client_socket.recv(1024)
+                if self.check_client_is_online(client_socket, message_partner):
+                    if self.is_user_registered(message_partner):
+                        try:
+                            client_socket.send(bytes("!user exists", "utf8"))
+                        except Exception:
+                            print("Cannot send answer")
+                        chat_members = client_socket.recv(1024)
+                        if self.check_client_is_online(client_socket, chat_members):
 
-                    target_username = chat_members_parts[0]
-                    print(target_username)
-                    username = chat_members_parts[1]
-                    ids = self.get_chat_member_ids(target_username, username)
-                    target_id = ids[0]
-                    client_id = ids[1]
-                    client_socket.send(bytes(f"{target_id}|{client_id}", "utf8"))
+                            chat_members_decoded = chat_members.decode("utf-8")
+                            chat_members_parts = chat_members_decoded.split("|")
+
+                            target_username = chat_members_parts[0]
+                            print(target_username)
+                            username = chat_members_parts[1]
+                            ids = self.get_chat_member_ids(target_username, username)
+                            target_id = ids[0]
+                            client_id = ids[1]
+                            try:
+                                client_socket.send(bytes(f"{target_id}|{client_id}", "utf8"))
+                            except Exception:
+                                print("Cannot send answer")
+                        else:
+                            break
+                    else:
+                        try:
+                            client_socket.send(bytes("!user doesnt exist", "utf8"))
+                        except Exception:
+                            print("Cannot send answer")
+                        continue
                 else:
-                    client_socket.send(bytes("!user doesnt exist", "utf8"))
-                    continue
+                    break
 
                 while True:
                     msg = client_socket.recv(512)
-                    if not msg:
-                        client_id = self.client_id[client_socket]
-                        del self.clients[client_id]
-                        client_socket.close()
-                        break
                     msg_decoded = msg.decode("utf-8")
                     parts = msg_decoded.split("|")
-                    print("länge von parts", len(parts))
-                    if len(parts) != 3:
-                        client_socket.close()
-                    receiver_id = int(parts[0].strip("()").rstrip(','))
-                    client_id = int(parts[1].strip("()").rstrip(','))
-                    message = parts[2]
-                    self.insert_chat_message(receiver_id, client_id, message)
-
-            if not msg:
-                client_id = self.client_id[client_socket]
-                del self.clients[client_id]
-                client_socket.close()
+                    if self.check_client_is_online(client_socket, msg):
+                        print("länge von parts", len(parts))
+                        if len(parts) != 3:
+                            client_socket.close()
+                        receiver_id = int(parts[0].strip("()").rstrip(','))
+                        client_id = int(parts[1].strip("()").rstrip(','))
+                        message = parts[2]
+                        self.insert_chat_message(receiver_id, client_id, message)
+                    else:
+                        break
                 break
+            self.check_client_is_online(client_socket, received_data)
+
+    def check_client_is_online(self, client_socket, msg):
+        if not msg:
+            client_id = self.client_id[client_socket]
+            del self.clients[client_id]
+            client_socket.close()
+            return False
+        else:
+            return True
 
     def set_auto_increment_start_value(self, start_value):
         query = f"ALTER TABLE Users AUTO_INCREMENT = {start_value};"
