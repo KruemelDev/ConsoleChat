@@ -2,6 +2,7 @@ import socket
 import threading
 import hashlib
 import json
+import ast
 
 
 class Client:
@@ -134,9 +135,23 @@ class Client:
         print("This is a chat with:", chat_target_name)
         for i in range(20):
             print("")
+        chat_history = self.client_socket.recv(8192)
+        chat_history_decoded = chat_history.decode("utf-8")
+        eval_list = ast.literal_eval(chat_history_decoded)
+        chat_history_list = [[tup for tup in item] for item in eval_list]
+
+        print(target_id)
+        for i in chat_history_list:
+            for j in chat_history_list:
+                if str(target_id) in str(j):
+                    print(f"{chat_target_name}: {i[2]}")
+                    break
+                if str(sender_id) in str(j):
+                    print(f"{username}: {i[2]}")
+                    break
+
         receive_target_messages_thread = threading.Thread(target=self.recv_messages, args=(chat_target_name,))
         receive_target_messages_thread.start()
-
         while self.running:
             if self.running:
                 message = input(f"You to {chat_target_name}: ")

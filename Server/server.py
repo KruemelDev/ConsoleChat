@@ -13,14 +13,13 @@ class Server:
                 self.port_to_int = int(port)
                 if self.port_to_int < 65535:
                     break
-                elif self.port_to_int > 1023:
-                    continue
             except ValueError as e:
                 print(e)
+
         try:
             self.mydb = mysql.connector.connect(
                 host="localhost",
-                port="3308",
+                port=3308,
                 user="root",
                 passwd=f"{db_password}"
             )
@@ -36,9 +35,11 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.hostname = socket.gethostname()
         amount_clients = input("Specify how many clients can connect at the same time: ")
+        print(self.hostname)
         try:
             print(socket.gethostbyname(self.hostname))
-            self.server_address = (socket.gethostbyname(self.hostname), self.port_to_int)
+            # ip adress not dynamic! Important fix!
+            self.server_address = ("192.168.66.58", self.port_to_int)
             self.server_socket.bind(self.server_address)
             self.server_socket.listen(int(amount_clients))
         except OSError as e:
@@ -84,7 +85,12 @@ class Server:
                             print("Cannot send answer")
                         self.overwrite_client_adress(client_adress, json_data["username"])
                         client_id = self.get_user_id(json_data["username"])
+                        lock = threading.Lock()
+                        lock.acquire()
                         self.clients[client_id] = client_socket
+                        self.client_id[client_socket] = client_id
+                        lock.release()
+
                     else:
                         try:
                             client_socket.send(bytes("!login failed", "utf8"))
@@ -111,8 +117,11 @@ class Server:
                         except Exception:
                             print("Cannot send answer")
                         client_id = self.get_user_id(json_data["username"])
+                        lock = threading.Lock()
+                        lock.acquire()
                         self.clients[client_id] = client_socket
                         self.client_id[client_socket] = client_id
+                        lock.release()
                 else:
                     break
 
@@ -152,6 +161,14 @@ class Server:
                 else:
                     break
 
+                print("keys: ", self.client_id.keys())
+                print("Client socket: ", client_socket)
+                print("Client socket in dict: ", client_socket)
+                lock = threading.Lock()
+                lock.acquire()
+                chat_history = self.get_chat_history(self.client_id[client_socket])
+                lock.release()
+                client_socket.send(bytes(str(chat_history), "utf8"))
                 while True:
                     msg = client_socket.recv(512)
                     msg_decoded = msg.decode("utf-8")
@@ -177,6 +194,12 @@ class Server:
             return False
         else:
             return True
+
+    def get_chat_history(self, client_id):
+        self.mycursor.execute("SELECT receiver_id, sender_id, message FROM ChatHistory WHERE receiver_id = %s OR sender_id = %s ORDER BY receiver_id DESC, sender_id DESC LIMIT 15", (client_id, client_id))
+        chat_history = self.mycursor.fetchall()
+        print(chat_history)
+        return chat_history
 
     def set_auto_increment_start_value(self, start_value):
         query = f"ALTER TABLE Users AUTO_INCREMENT = {start_value};"
