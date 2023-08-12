@@ -114,8 +114,8 @@ class Client:
                             chat_member_ids_parts = chat_member_ids_decoded.split("|")
 
                             target_id = chat_member_ids_parts[0]
-                            sender_id = chat_member_ids_parts[1]
-                            self.chat(target_username, target_id, sender_id, username)
+                            client_id = chat_member_ids_parts[1]
+                            self.chat(target_username, target_id, client_id, username)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
                             break
@@ -131,25 +131,12 @@ class Client:
             else:
                 continue
 
-    def chat(self, chat_target_name, target_id, sender_id, username):
+    def chat(self, chat_target_name, target_id, client_id, username):
         print("This is a chat with:", chat_target_name)
-        for i in range(20):
+        for i in range(5):
             print("")
-        chat_history = self.client_socket.recv(8192)
-        chat_history_decoded = chat_history.decode("utf-8")
-        eval_list = ast.literal_eval(chat_history_decoded)
-        chat_history_list = [[tup for tup in item] for item in eval_list]
 
-        print(target_id)
-        for i in chat_history_list:
-            for j in chat_history_list:
-                if str(target_id) in str(j):
-                    print(f"{chat_target_name}: {i[2]}")
-                    break
-                if str(sender_id) in str(j):
-                    print(f"{username}: {i[2]}")
-                    break
-
+        self.receive_and_display_chat_history(client_id, chat_target_name)
         receive_target_messages_thread = threading.Thread(target=self.recv_messages, args=(chat_target_name,))
         receive_target_messages_thread.start()
         while self.running:
@@ -160,7 +147,7 @@ class Client:
                 if message.startswith("!exit"):
                     self.running = False
                 try:
-                    self.client_socket.send(bytes(f"{target_id}|{sender_id}|{message}", "utf8"))
+                    self.client_socket.send(bytes(f"{target_id}|{client_id}|{message}", "utf8"))
                 except BrokenPipeError:
                     continue
 
@@ -179,13 +166,24 @@ class Client:
                     break
                 if chat_message_decoded == "":
                     continue
-                if chat_message_decoded.startswith("server: "):
-                    print(f"\n{chat_message_decoded}")
-                    continue
                 if chat_message_decoded:
                     print(f"\n{chat_target_name}: {chat_message_decoded}")
             except socket.timeout:
                 pass
+
+    def receive_and_display_chat_history(self, client_id, chat_target_name):
+        chat_history = self.client_socket.recv(8192)
+        chat_history_decoded = chat_history.decode("utf-8")
+        eval_list = ast.literal_eval(chat_history_decoded)
+        chat_history_list = [[tup for tup in item] for item in eval_list]
+        print(chat_history)
+        for i in chat_history_list:
+            striped_client_id = client_id.strip("(),")
+
+            if str(striped_client_id) == str(i[1]):
+                print(f"You to {chat_target_name}: {i[2]}")
+            elif str(striped_client_id) == str(i[0]):
+                print(f"{chat_target_name}: {i[2]}")
 
 
 if __name__ == "__main__":

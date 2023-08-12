@@ -196,8 +196,11 @@ class Server:
             return True
 
     def get_chat_history(self, client_id):
-        self.mycursor.execute("SELECT receiver_id, sender_id, message FROM ChatHistory WHERE receiver_id = %s OR sender_id = %s ORDER BY receiver_id DESC, sender_id DESC LIMIT 15", (client_id, client_id))
+        lock = threading.Lock()
+        lock.acquire()
+        self.mycursor.execute("SELECT receiver_id, sender_id, message FROM ChatHistory WHERE receiver_id = %s OR sender_id = %s ORDER BY id LIMIT 15", (client_id, client_id))
         chat_history = self.mycursor.fetchall()
+        lock.release()
         print(chat_history)
         return chat_history
 
@@ -271,11 +274,6 @@ class Server:
             receiver.send(bytes(message, "utf8"))
         except KeyError as e:
             print(e)
-            try:
-                sender = self.clients[str(sender_id)]
-                sender.send(bytes("server: Your partner is offline", "utf8"))
-            except KeyError as e:
-                print(e)
 
     def insert_chat_message(self, receiver_id, sender_id, message):
         lock = threading.Lock()
