@@ -38,8 +38,7 @@ class Server:
         print(self.hostname)
         try:
             print(socket.gethostbyname(self.hostname))
-            # ip adress not dynamic! Important fix!
-            self.server_address = ("192.168.66.58", self.port_to_int)
+            self.server_address = (socket.gethostbyname(self.hostname), self.port_to_int)
             self.server_socket.bind(self.server_address)
             self.server_socket.listen(int(amount_clients))
         except OSError as e:
