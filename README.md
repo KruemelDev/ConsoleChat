@@ -18,10 +18,7 @@ This messanger is not recommended for sending confidential data, such as passwor
 - Once docker and docker-compose are installed, run the file docker-compose.yml in the Server folder with this command:<br> ```` docker-compose up -d ````
   
 -  ## Install packages
-    - Linux/MacOS:   
-      - Run the install-dependencies.sh file
-    - Windows:
-      - Run the install-dependencies.bat file
+    - Execute this to install requirements: ````pip install -r requirements.txt````
          
 - Now run the server.py file
 - Next, you can run the client.py file, but make sure you connect to the same IP and port that the socket is running on
