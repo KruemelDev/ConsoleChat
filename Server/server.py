@@ -38,7 +38,7 @@ class Server:
         print(self.hostname)
         try:
             print(socket.gethostbyname(self.hostname))
-            self.server_address = (socket.gethostbyname(self.hostname), self.port_to_int)
+            self.server_address = ("192.168.66.58", self.port_to_int)
             self.server_socket.bind(self.server_address)
             self.server_socket.listen(int(amount_clients))
         except OSError as e:
@@ -75,8 +75,8 @@ class Server:
                     signin_credentials_decoded = signin_credentials.decode("utf-8")
                     json_data = json.loads(signin_credentials_decoded)
                     print(json_data)
-                    print("Das angekommende passwort ist: ", json_data["password"])
-                    print("Der angekommende benutzername ist: ", json_data["username"])
+                    print("The received password is: ", json_data["password"])
+                    print("The received username is: ", json_data["username"])
                     if self.check_login_credentials(json_data["username"], json_data["password"]):
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
@@ -104,6 +104,7 @@ class Server:
                     json_data = json.loads(check_register_credentials)
                     print(json_data)
                     if self.is_user_registered(json_data["username"]):
+                        print("function is user registered reached")
                         try:
                             client_socket.send(bytes("!already taken", "utf8"))
                         except Exception:
@@ -173,7 +174,6 @@ class Server:
                     msg_decoded = msg.decode("utf-8")
                     parts = msg_decoded.split("|")
                     if self.check_client_is_online(client_socket, msg):
-                        print("länge von parts", len(parts))
                         if len(parts) != 3:
                             client_socket.close()
                         receiver_id = int(parts[0].strip("()").rstrip(','))
@@ -197,7 +197,7 @@ class Server:
     def get_chat_history(self, client_id):
         lock = threading.Lock()
         lock.acquire()
-        self.mycursor.execute("SELECT receiver_id, sender_id, message FROM ChatHistory WHERE receiver_id = %s OR sender_id = %s ORDER BY id LIMIT 15", (client_id, client_id))
+        self.mycursor.execute("SELECT receiver_id, sender_id, message FROM ChatHistory WHERE receiver_id = %s OR sender_id = %s ORDER BY id DESC LIMIT 15", (client_id, client_id))
         chat_history = self.mycursor.fetchall()
         lock.release()
         print(chat_history)
@@ -234,6 +234,18 @@ class Server:
         lock.release()
         return result is not None
 
+    def register_in_db(self, user_credentials, client_adress):
+        print(user_credentials["password"])
+        lock = threading.Lock()
+        lock.acquire()
+        print("bin da")
+        self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
+                              (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
+        print("vor commit")
+        self.mydb.commit()
+        print("bin immernoch da")
+        lock.release()
+
     def get_chat_member_ids(self, target_username, username):
         print(target_username)
         lock = threading.Lock()
@@ -247,15 +259,6 @@ class Server:
         print(receiver_user_id)
         ids = [receiver_user_id, sender_id]
         return ids
-
-    def register_in_db(self, user_credentials, client_adress):
-        print(user_credentials["password"])
-        lock = threading.Lock()
-        lock.acquire()
-        self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
-                              (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
-        self.mydb.commit()
-        lock.release()
 
     def get_user_id(self, username):
         self.mycursor.execute("SELECT id FROM Users WHERE %s = username", (username,))
