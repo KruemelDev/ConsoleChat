@@ -171,13 +171,19 @@ class Client:
             except socket.timeout:
                 pass
 
+    @staticmethod
+    def reverse_list(input_list):
+        reverse_list = input_list[::-1]
+        return reverse_list
+
     def receive_and_display_chat_history(self, client_id, chat_target_name):
         chat_history = self.client_socket.recv(8192)
         chat_history_decoded = chat_history.decode("utf-8")
         eval_list = ast.literal_eval(chat_history_decoded)
         chat_history_list = [[tup for tup in item] for item in eval_list]
-        print(chat_history)
-        for i in chat_history_list:
+        reserve_chat_history_list = self.reverse_list(chat_history_list)
+        
+        for i in reserve_chat_history_list:
             striped_client_id = client_id.strip("(),")
 
             if str(striped_client_id) == str(i[1]):
