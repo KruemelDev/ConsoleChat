@@ -182,7 +182,7 @@ class Client:
         eval_list = ast.literal_eval(chat_history_decoded)
         chat_history_list = [[tup for tup in item] for item in eval_list]
         reserve_chat_history_list = self.reverse_list(chat_history_list)
-        
+
         for i in reserve_chat_history_list:
             striped_client_id = client_id.strip("(),")
 

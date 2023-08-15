@@ -75,8 +75,8 @@ class Server:
                     signin_credentials_decoded = signin_credentials.decode("utf-8")
                     json_data = json.loads(signin_credentials_decoded)
                     print(json_data)
-                    print("Das angekommende passwort ist: ", json_data["password"])
-                    print("Der angekommende benutzername ist: ", json_data["username"])
+                    print("The received password is: ", json_data["password"])
+                    print("The received username is: ", json_data["username"])
                     if self.check_login_credentials(json_data["username"], json_data["password"]):
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
@@ -173,7 +173,6 @@ class Server:
                     msg_decoded = msg.decode("utf-8")
                     parts = msg_decoded.split("|")
                     if self.check_client_is_online(client_socket, msg):
-                        print("länge von parts", len(parts))
                         if len(parts) != 3:
                             client_socket.close()
                         receiver_id = int(parts[0].strip("()").rstrip(','))
