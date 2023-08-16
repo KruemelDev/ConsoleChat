@@ -25,5 +25,4 @@ This messanger is not recommended for sending confidential data, such as passwor
 
 ## Planed Features
 
-- A chat history
 - Timeout for the user if he/she is afk for a long time
