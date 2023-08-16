@@ -3,6 +3,7 @@ import threading
 import hashlib
 import json
 import ast
+import multiprocessing
 
 
 class Client:
@@ -28,7 +29,6 @@ class Client:
             except ConnectionRefusedError:
                 print("Connection refused")
                 quit()
-        self.running = True
         self.long_message = ""
 
     @staticmethod
@@ -79,6 +79,7 @@ class Client:
                 self.send_to_server_user_credentials(username_input, password_input)
                 server_answer = self.client_socket.recv(1024).decode("utf-8")
                 if server_answer == "!already taken":
+                    print(server_answer.strip("!"))
                     continue
                 elif server_answer == "!successful":
                     print("Your account has been created")
@@ -108,13 +109,13 @@ class Client:
                         if server_answer == "!user exists":
                             chat_members = f"{target_username}|{username}"
                             self.client_socket.send(bytes(chat_members, "utf8"))
-
                             chat_ids = self.client_socket.recv(1024)
                             chat_member_ids_decoded = chat_ids.decode("utf-8")
                             chat_member_ids_parts = chat_member_ids_decoded.split("|")
 
                             target_id = chat_member_ids_parts[0]
                             client_id = chat_member_ids_parts[1]
+                            self.client_socket.send(bytes(target_id, "utf8"))
                             self.chat(target_username, target_id, client_id, username)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
@@ -124,7 +125,6 @@ class Client:
 
                     else:
                         continue
-                # Return to menu
                 continue
             elif commands == "!quit":
                 quit()
@@ -137,37 +137,46 @@ class Client:
             print("")
 
         self.receive_and_display_chat_history(client_id, chat_target_name)
-        receive_target_messages_thread = threading.Thread(target=self.recv_messages, args=(chat_target_name,))
-        receive_target_messages_thread.start()
-        while self.running:
-            if self.running:
-                message = input(f"You to {chat_target_name}: ")
-                if message == "":
-                    continue
-                if message.startswith("!exit"):
-                    self.running = False
+        receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name,))
+        receive_target_messages_process.start()
+        while True:
+            message = input(f"You to {chat_target_name}: ")
+            if message == "":
+                continue
+            if message.startswith("!exit"):
+                receive_target_messages_process.terminate()
+                self.client_socket.send(bytes("!exit", "utf8"))
+                break
+            else:
                 try:
                     self.client_socket.send(bytes(f"{target_id}|{client_id}|{message}", "utf8"))
                 except BrokenPipeError:
                     continue
 
-        print("Please wait a few seconds, the chat will then close")
-        receive_target_messages_thread.join()
         self.login_menu(username)
 
     def recv_messages(self, chat_target_name):
-        while self.running:
+        while True:
             try:
 
                 chat_message = self.client_socket.recv(640)
                 chat_message_decoded = chat_message.decode("utf8")
+                split_message = chat_message_decoded.split(":")
+                message_owner = split_message[0]
+                message = split_message[1]
                 if not chat_message:
                     print("Disconnected")
                     break
                 if chat_message_decoded == "":
                     continue
-                if chat_message_decoded:
-                    print(f"\n{chat_target_name}: {chat_message_decoded}")
+                if chat_message_decoded and chat_message_decoded.startswith(chat_target_name):
+                    print(f"\n{chat_target_name}: {message}")
+                else:
+                    for i in range(1):
+                        print("")
+                    print(message_owner, "has sent you a message")
+                    for i in range(1):
+                        print("")
             except socket.timeout:
                 pass
 

@@ -38,7 +38,7 @@ class Server:
         print(self.hostname)
         try:
             print(socket.gethostbyname(self.hostname))
-            self.server_address = (socket.gethostbyname(self.hostname), self.port_to_int)
+            self.server_address = ("192.168.66.58", self.port_to_int)
             self.server_socket.bind(self.server_address)
             self.server_socket.listen(int(amount_clients))
         except OSError as e:
@@ -104,13 +104,13 @@ class Server:
                     json_data = json.loads(check_register_credentials)
                     print(json_data)
                     if self.is_user_registered(json_data["username"]):
+                        print("function is user registered reached")
                         try:
                             client_socket.send(bytes("!already taken", "utf8"))
                         except Exception:
                             print("cannot send answer")
                     else:
-                        store_thread = threading.Thread(target=self.register_in_db, args=(json_data, client_adress))
-                        store_thread.start()
+                        self.register_in_db(json_data, client_adress)
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
                         except Exception:
@@ -134,6 +134,7 @@ class Server:
                         except Exception:
                             print("Cannot send answer")
                         chat_members = client_socket.recv(1024)
+
                         if self.check_client_is_online(client_socket, chat_members):
 
                             chat_members_decoded = chat_members.decode("utf-8")
@@ -147,6 +148,7 @@ class Server:
                             client_id = ids[1]
                             try:
                                 client_socket.send(bytes(f"{target_id}|{client_id}", "utf8"))
+
                             except Exception:
                                 print("Cannot send answer")
                         else:
@@ -163,15 +165,19 @@ class Server:
                 print("keys: ", self.client_id.keys())
                 print("Client socket: ", client_socket)
                 print("Client socket in dict: ", client_socket)
-                lock = threading.Lock()
-                lock.acquire()
-                chat_history = self.get_chat_history(self.client_id[client_socket])
-                lock.release()
+
+                target_id = client_socket.recv(256)
+                target_id_decoded = str(target_id.decode("utf-8")).strip("(),")
+                print("target id:", target_id_decoded)
+                chat_history = self.get_chat_history(self.client_id[client_socket], target_id_decoded)
                 client_socket.send(bytes(str(chat_history), "utf8"))
+
                 while True:
                     msg = client_socket.recv(512)
                     msg_decoded = msg.decode("utf-8")
                     parts = msg_decoded.split("|")
+                    if msg_decoded == "!exit":
+                        break
                     if self.check_client_is_online(client_socket, msg):
                         if len(parts) != 3:
                             client_socket.close()
@@ -179,9 +185,8 @@ class Server:
                         client_id = int(parts[1].strip("()").rstrip(','))
                         message = parts[2]
                         self.insert_chat_message(receiver_id, client_id, message)
-                    else:
-                        break
-                break
+
+                continue
             self.check_client_is_online(client_socket, received_data)
 
     def check_client_is_online(self, client_socket, msg):
@@ -193,10 +198,11 @@ class Server:
         else:
             return True
 
-    def get_chat_history(self, client_id):
+    def get_chat_history(self, client_id, other_client_id):
         lock = threading.Lock()
         lock.acquire()
-        self.mycursor.execute("SELECT receiver_id, sender_id, message FROM ChatHistory WHERE receiver_id = %s OR sender_id = %s ORDER BY id DESC LIMIT 15", (client_id, client_id))
+        self.mycursor.execute("SELECT receiver_id, sender_id, message FROM ChatHistory WHERE (receiver_id = %s AND sender_id = %s) OR (receiver_id = %s AND sender_id = %s) ORDER BY id DESC LIMIT 15",
+                              (client_id, other_client_id, other_client_id, client_id))
         chat_history = self.mycursor.fetchall()
         lock.release()
         print(chat_history)
@@ -233,6 +239,15 @@ class Server:
         lock.release()
         return result is not None
 
+    def register_in_db(self, user_credentials, client_adress):
+        print(user_credentials["password"])
+        lock = threading.Lock()
+        lock.acquire()
+        self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
+                              (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
+        self.mydb.commit()
+        lock.release()
+
     def get_chat_member_ids(self, target_username, username):
         print(target_username)
         lock = threading.Lock()
@@ -247,18 +262,12 @@ class Server:
         ids = [receiver_user_id, sender_id]
         return ids
 
-    def register_in_db(self, user_credentials, client_adress):
-        print(user_credentials["password"])
+    def get_user_id(self, username):
         lock = threading.Lock()
         lock.acquire()
-        self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
-                              (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
-        self.mydb.commit()
-        lock.release()
-
-    def get_user_id(self, username):
-        self.mycursor.execute("SELECT id FROM Users WHERE %s = username", (username,))
+        self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
         identifier = self.mycursor.fetchone()
+        lock.release()
         identifier = str(identifier).strip("(), ")
         print("client id is:", identifier)
         return identifier
@@ -267,11 +276,21 @@ class Server:
         print("receiver id: ", receiver_id)
         print("keys", self.clients.keys())
         try:
+            username = self.get_username(sender_id)
             receiver = self.clients[str(receiver_id)]
             print(receiver)
-            receiver.send(bytes(message, "utf8"))
+            receiver.send(bytes(f"{username}:{message}", "utf8"))
         except KeyError as e:
             print(e)
+
+    def get_username(self, sender_id):
+        lock = threading.Lock()
+        lock.acquire()
+        self.mycursor.execute("SELECT username FROM Users WHERE id = %s", (sender_id,))
+        lock.release()
+        username = self.mycursor.fetchone()
+        striped_username = str(username).strip("(),' ")
+        return striped_username
 
     def insert_chat_message(self, receiver_id, sender_id, message):
         lock = threading.Lock()
