@@ -9,6 +9,8 @@ This messanger is not recommended for sending confidential data, such as passwor
 
 - Create a account and use your own username and password
 - Communicate with your friends over your self-hosted server
+- Have a chat history to see your last messages
+- Get notified while you are in a chat with your friend that another friend wrote you a message
 
 ## How to use
 
@@ -25,4 +27,4 @@ This messanger is not recommended for sending confidential data, such as passwor
 
 ## Planed Features
 
-- Timeout for the user if he/she is afk for a long time
+- Group chats
