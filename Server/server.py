@@ -62,6 +62,7 @@ class Server:
     def handle_client(self, client_socket, client_adress):
         self.clients[client_socket] = client_adress
         print(self.clients)
+        client_signin = False
         while True:
             msg = client_socket.recv(1024)
             print(msg)
@@ -80,8 +81,8 @@ class Server:
                     if self.check_login_credentials(json_data["username"], json_data["password"]):
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
-                        except Exception:
-                            print("Cannot send answer")
+                        except BrokenPipeError:
+                            print("Cannot send answer to: ", client_socket)
                         self.overwrite_client_adress(client_adress, json_data["username"])
                         client_id = self.get_user_id(json_data["username"])
                         lock = threading.Lock()
@@ -89,12 +90,12 @@ class Server:
                         self.clients[client_id] = client_socket
                         self.client_id[client_socket] = client_id
                         lock.release()
-
+                        client_signin = True
                     else:
                         try:
                             client_socket.send(bytes("!login failed", "utf8"))
-                        except Exception:
-                            print("Cannot send answer")
+                        except BrokenPipeError:
+                            print("Cannot send answer to: ", client_socket)
                 else:
                     break
 
@@ -107,14 +108,14 @@ class Server:
                         print("function is user registered reached")
                         try:
                             client_socket.send(bytes("!already taken", "utf8"))
-                        except Exception:
-                            print("cannot send answer")
+                        except BrokenPipeError:
+                            print("cannot send answer to: ", client_socket)
                     else:
                         self.register_in_db(json_data, client_adress)
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
-                        except Exception:
-                            print("Cannot send answer")
+                        except BrokenPipeError:
+                            print("Cannot send answer to: ", client_socket)
                         client_id = self.get_user_id(json_data["username"])
                         lock = threading.Lock()
                         lock.acquire()
@@ -125,14 +126,14 @@ class Server:
                     break
 
             print(received_data)
-            if received_data.startswith("!chat"):
+            if received_data.startswith("!chat") and client_signin:
                 message_partner = client_socket.recv(1024)
                 if self.check_client_is_online(client_socket, message_partner):
                     if self.is_user_registered(message_partner):
                         try:
                             client_socket.send(bytes("!user exists", "utf8"))
-                        except Exception:
-                            print("Cannot send answer")
+                        except BrokenPipeError:
+                            print("Cannot send answer to: ", client_socket)
                         chat_members = client_socket.recv(1024)
 
                         if self.check_client_is_online(client_socket, chat_members):
@@ -149,15 +150,15 @@ class Server:
                             try:
                                 client_socket.send(bytes(f"{target_id}|{client_id}", "utf8"))
 
-                            except Exception:
-                                print("Cannot send answer")
+                            except BrokenPipeError:
+                                print("Cannot send answer to: ", client_socket)
                         else:
                             break
                     else:
                         try:
                             client_socket.send(bytes("!user doesnt exist", "utf8"))
-                        except Exception:
-                            print("Cannot send answer")
+                        except BrokenPipeError:
+                            print("Cannot send answer to: ", client_socket)
                         continue
                 else:
                     break
