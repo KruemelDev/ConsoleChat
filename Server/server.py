@@ -1,11 +1,17 @@
 import socket
+import time
+
 import mysql.connector
 import threading
 import json
+import group_manager
 
 
-class Server:
+class Server(group_manager.GroupManager):
+
     def __init__(self):
+
+        super().__init__()
         db_password = input("Enter you db password to connect to the database: ")
         while True:
             port = input("Specify the port where the socket should run: ")
@@ -62,6 +68,8 @@ class Server:
     def handle_client(self, client_socket, client_adress):
         self.clients[client_socket] = client_adress
         print(self.clients)
+        client_login = False
+
         while True:
             msg = client_socket.recv(1024)
             print(msg)
@@ -80,7 +88,7 @@ class Server:
                     if self.check_login_credentials(json_data["username"], json_data["password"]):
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
-                        except Exception:
+                        except BrokenPipeError:
                             print("Cannot send answer")
                         self.overwrite_client_adress(client_adress, json_data["username"])
                         client_id = self.get_user_id(json_data["username"])
@@ -89,11 +97,11 @@ class Server:
                         self.clients[client_id] = client_socket
                         self.client_id[client_socket] = client_id
                         lock.release()
-
+                        client_login = True
                     else:
                         try:
                             client_socket.send(bytes("!login failed", "utf8"))
-                        except Exception:
+                        except BrokenPipeError:
                             print("Cannot send answer")
                 else:
                     break
@@ -107,13 +115,13 @@ class Server:
                         print("function is user registered reached")
                         try:
                             client_socket.send(bytes("!already taken", "utf8"))
-                        except Exception:
+                        except BrokenPipeError:
                             print("cannot send answer")
                     else:
                         self.register_in_db(json_data, client_adress)
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
-                        except Exception:
+                        except BrokenPipeError:
                             print("Cannot send answer")
                         client_id = self.get_user_id(json_data["username"])
                         lock = threading.Lock()
@@ -121,17 +129,18 @@ class Server:
                         self.clients[client_id] = client_socket
                         self.client_id[client_socket] = client_id
                         lock.release()
+                        client_login = True
                 else:
                     break
 
             print(received_data)
-            if received_data.startswith("!chat"):
+            if received_data.startswith("!chat") and client_login:
                 message_partner = client_socket.recv(1024)
                 if self.check_client_is_online(client_socket, message_partner):
                     if self.is_user_registered(message_partner):
                         try:
                             client_socket.send(bytes("!user exists", "utf8"))
-                        except Exception:
+                        except BrokenPipeError:
                             print("Cannot send answer")
                         chat_members = client_socket.recv(1024)
 
@@ -149,14 +158,14 @@ class Server:
                             try:
                                 client_socket.send(bytes(f"{target_id}|{client_id}", "utf8"))
 
-                            except Exception:
+                            except BrokenPipeError:
                                 print("Cannot send answer")
                         else:
                             break
                     else:
                         try:
                             client_socket.send(bytes("!user doesnt exist", "utf8"))
-                        except Exception:
+                        except BrokenPipeError:
                             print("Cannot send answer")
                         continue
                 else:
@@ -187,16 +196,37 @@ class Server:
                         self.insert_chat_message(receiver_id, client_id, message)
 
                 continue
+
+            if received_data.startswith("!create_group") and client_login:
+                pass
+            if received_data.startswith("!leave_group") and client_login:
+                pass
+            if received_data.startswith("!add_user_to_group") and client_login:
+                pass
+            if received_data.startswith("!remove_user_from_group") and client_login:
+                pass
+            if received_data.startswith("!get_group_members") and client_login:
+                pass
+            if received_data.startswith("!get_user_groups") and client_login:
+                pass
+            # have to be overworked
+            if received_data.startswith("!send") and client_login:
+                pass
+            if received_data.startswith("!delete_group") and client_login:
+                pass
+
             self.check_client_is_online(client_socket, received_data)
 
     def check_client_is_online(self, client_socket, msg):
-        if not msg:
-            client_id = self.client_id[client_socket]
-            del self.clients[client_id]
-            client_socket.close()
-            return False
-        else:
-            return True
+        while True:
+            time.sleep(2.0)
+            if not msg:
+                client_id = self.client_id[client_socket]
+                del self.clients[client_id]
+                client_socket.close()
+                return False
+            else:
+                return True
 
     def get_chat_history(self, client_id, other_client_id):
         lock = threading.Lock()
