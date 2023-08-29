@@ -1,6 +1,4 @@
 import socket
-import time
-
 import mysql.connector
 import threading
 import json
@@ -11,8 +9,8 @@ class Server(group_manager.GroupManager):
 
     def __init__(self):
 
-        super().__init__()
         db_password = input("Enter you db password to connect to the database: ")
+        super().__init__(db_password)
         while True:
             port = input("Specify the port where the socket should run: ")
             try:
@@ -37,14 +35,15 @@ class Server(group_manager.GroupManager):
         self.mycursor.execute("USE consolechat")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS Users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255), password VARCHAR(255), ip VARCHAR(255), port INT(255))")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (id INT AUTO_INCREMENT PRIMARY KEY, receiver_id INT, sender_id INT, message VARCHAR(512))")
-        self.set_auto_increment_start_value(100000)
+        self.mycursor.execute("CREATE TABLE IF NOT EXISTS GroupChats (group_id INT AUTO_INCREMENT PRIMARY KEY, group_name VARCHAR(255), admin_id INT)")
+        self.mycursor.execute("CREATE TABLE IF NOT EXISTS GroupMembers (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, user_id INT)")
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.hostname = socket.gethostname()
         amount_clients = input("Specify how many clients can connect at the same time: ")
         print(self.hostname)
         try:
             print(socket.gethostbyname(self.hostname))
-            self.server_address = (socket.gethostbyname(self.hostname), self.port_to_int)
+            self.server_address = ("192.168.66.58", self.port_to_int)
             self.server_socket.bind(self.server_address)
             self.server_socket.listen(int(amount_clients))
         except OSError as e:
@@ -198,7 +197,21 @@ class Server(group_manager.GroupManager):
                 continue
 
             if received_data.startswith("!create_group") and client_login:
-                pass
+                print("machen")
+                group_name = client_socket.recv(512)
+                group_name_decoded = group_name.decode("utf-8")
+                print(group_name_decoded, "in funktion")
+                admin_id = client_socket.recv(512)
+                admin_id_decoded = admin_id.decode("utf-8")
+                print(admin_id_decoded)
+                # das print wird nicht mehr ausgeführt
+                if group_manager.GroupManager.create_group(self, group_name_decoded, admin_id_decoded):
+                    client_socket.send(bytes("Group was created", "utf8"))
+                    print("weiter")
+                else:
+                    print("else")
+                    client_socket.send(bytes("An error occurred please try again later", "utf8"))
+
             if received_data.startswith("!leave_group") and client_login:
                 pass
             if received_data.startswith("!add_user_to_group") and client_login:
@@ -218,15 +231,13 @@ class Server(group_manager.GroupManager):
             self.check_client_is_online(client_socket, received_data)
 
     def check_client_is_online(self, client_socket, msg):
-        while True:
-            time.sleep(2.0)
-            if not msg:
-                client_id = self.client_id[client_socket]
-                del self.clients[client_id]
-                client_socket.close()
-                return False
-            else:
-                return True
+        if not msg:
+            client_id = self.client_id[client_socket]
+            del self.clients[client_id]
+            client_socket.close()
+            return False
+        else:
+            return True
 
     def get_chat_history(self, client_id, other_client_id):
         lock = threading.Lock()
@@ -238,10 +249,6 @@ class Server(group_manager.GroupManager):
         lock.release()
         print(chat_history)
         return chat_history
-
-    def set_auto_increment_start_value(self, start_value):
-        query = f"ALTER TABLE Users AUTO_INCREMENT = {start_value};"
-        self.mycursor.execute(query)
 
     def overwrite_client_adress(self, client_adress, username):
         lock = threading.Lock()

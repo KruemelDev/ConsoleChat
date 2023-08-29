@@ -4,6 +4,7 @@ import hashlib
 import json
 import ast
 import multiprocessing
+import time
 
 
 class Client:
@@ -30,6 +31,7 @@ class Client:
                 print("Connection refused")
                 quit()
         self.long_message = ""
+        self.client_id = ""
 
     @staticmethod
     def hash_password(password):
@@ -95,8 +97,13 @@ class Client:
         print("Type !exit to return to menu")
 
         while True:
-            commands = input("Type chat if you want to chat with a person: ")
-            if commands == "chat":
+            commands = input("Type commands to see all commands: ")
+            if commands == "help":
+                print("Type: \n"
+                      "help - list all commands\n"
+                      "chat - chat with a single person\n"
+                      "createGroup - create a group for a groupChat")
+            elif commands == "chat":
                 self.client_socket.send(bytes("!chat", "utf8"))
                 while True:
                     target_username = input("Which user would you like to write with: ")
@@ -114,9 +121,9 @@ class Client:
                             chat_member_ids_parts = chat_member_ids_decoded.split("|")
 
                             target_id = chat_member_ids_parts[0]
-                            client_id = chat_member_ids_parts[1]
+                            self.client_id = chat_member_ids_parts[1]
                             self.client_socket.send(bytes(target_id, "utf8"))
-                            self.chat(target_username, target_id, client_id, username)
+                            self.chat(target_username, target_id, username)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
                             break
@@ -126,17 +133,30 @@ class Client:
                     else:
                         continue
                 continue
+
+            elif commands == "createGroup":
+                for i in range(2):
+                    print()
+                self.client_socket.send(bytes("!create_group", "utf8"))
+                group_name = input("Specify a name for the group: ")
+                self.client_socket.send(bytes(group_name, "utf8"))
+                self.client_socket.send(bytes(self.client_id, "utf8"))
+
+                answer = self.client_socket.recv(512)
+                answer_decoded = answer.decode("utf8")
+                print(answer_decoded)
             elif commands == "!quit":
                 quit()
+
             else:
                 continue
 
-    def chat(self, chat_target_name, target_id, client_id, username):
+    def chat(self, chat_target_name, target_id, username):
         print("This is a chat with:", chat_target_name)
         for i in range(5):
             print("")
 
-        self.receive_and_display_chat_history(client_id, chat_target_name)
+        self.receive_and_display_chat_history(self.client_id, chat_target_name)
         receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name,))
         receive_target_messages_process.start()
         while True:
@@ -149,7 +169,7 @@ class Client:
                 break
             else:
                 try:
-                    self.client_socket.send(bytes(f"{target_id}|{client_id}|{message}", "utf8"))
+                    self.client_socket.send(bytes(f"{target_id}|{self.client_id}|{message}", "utf8"))
                 except BrokenPipeError:
                     continue
 
@@ -177,8 +197,8 @@ class Client:
                     print(message_owner, "has sent you a message")
                     for i in range(1):
                         print("")
-            except socket.timeout:
-                pass
+            except ConnectionResetError:
+                continue
 
     @staticmethod
     def reverse_list(input_list):
