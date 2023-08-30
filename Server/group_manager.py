@@ -1,4 +1,3 @@
-import socket
 import mysql.connector
 import threading
 from typing import Tuple
@@ -26,7 +25,7 @@ class GroupManager:
         lock = threading.Lock()
         lock.acquire()
         print(group_name)
-        self.mycursor.execute("INSERT INTO GroupChats (group_name = %s, admin_id = %s)", (group_name, admin_id))
+        self.mycursor.execute("INSERT INTO GroupChats (group_name, group_admin_id) VALUES (%s, %s)", (group_name, admin_id))
         self.mydb.commit()
         lock.release()
         return True

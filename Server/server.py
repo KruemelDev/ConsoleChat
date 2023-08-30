@@ -89,13 +89,8 @@ class Server(group_manager.GroupManager):
                             client_socket.send(bytes("!successful", "utf8"))
                         except BrokenPipeError:
                             print("Cannot send answer")
-                        self.overwrite_client_adress(client_adress, json_data["username"])
-                        client_id = self.get_user_id(json_data["username"])
-                        lock = threading.Lock()
-                        lock.acquire()
-                        self.clients[client_id] = client_socket
-                        self.client_id[client_socket] = client_id
-                        lock.release()
+
+                        self.handle_client_login(client_socket, json_data)
                         client_login = True
                     else:
                         try:
@@ -122,12 +117,8 @@ class Server(group_manager.GroupManager):
                             client_socket.send(bytes("!successful", "utf8"))
                         except BrokenPipeError:
                             print("Cannot send answer")
-                        client_id = self.get_user_id(json_data["username"])
-                        lock = threading.Lock()
-                        lock.acquire()
-                        self.clients[client_id] = client_socket
-                        self.client_id[client_socket] = client_id
-                        lock.release()
+
+                        self.handle_client_login(client_socket, json_data)
                         client_login = True
                 else:
                     break
@@ -198,14 +189,15 @@ class Server(group_manager.GroupManager):
 
             if received_data.startswith("!create_group") and client_login:
                 print("machen")
-                group_name = client_socket.recv(512)
-                group_name_decoded = group_name.decode("utf-8")
-                print(group_name_decoded, "in funktion")
-                admin_id = client_socket.recv(512)
-                admin_id_decoded = admin_id.decode("utf-8")
-                print(admin_id_decoded)
-                # das print wird nicht mehr ausgeführt
-                if group_manager.GroupManager.create_group(self, group_name_decoded, admin_id_decoded):
+                group_information = client_socket.recv(512)
+                group_information_decoded = group_information.decode("utf8")
+
+                parts = group_information_decoded.split("|")
+                group_name = parts[0]
+                admin_id = parts[1]
+                group_admin_id = self.get_user_id(admin_id)
+
+                if group_manager.GroupManager.create_group(self, group_name, group_admin_id):
                     client_socket.send(bytes("Group was created", "utf8"))
                     print("weiter")
                 else:
@@ -229,6 +221,15 @@ class Server(group_manager.GroupManager):
                 pass
 
             self.check_client_is_online(client_socket, received_data)
+
+    def handle_client_login(self, client_socket, json_data):
+        client_id = self.get_user_id(json_data["username"])
+        client_socket.send(bytes(str(client_id), "utf8"))
+        lock = threading.Lock()
+        lock.acquire()
+        self.clients[client_id] = client_socket
+        self.client_id[client_socket] = client_id
+        lock.release()
 
     def check_client_is_online(self, client_socket, msg):
         if not msg:
@@ -308,7 +309,7 @@ class Server(group_manager.GroupManager):
         lock.release()
         identifier = str(identifier).strip("(), ")
         print("client id is:", identifier)
-        return identifier
+        return int(identifier)
 
     def send_message_to_target(self, receiver_id, sender_id, message):
         print("receiver id: ", receiver_id)

@@ -4,7 +4,6 @@ import hashlib
 import json
 import ast
 import multiprocessing
-import time
 
 
 class Client:
@@ -31,7 +30,6 @@ class Client:
                 print("Connection refused")
                 quit()
         self.long_message = ""
-        self.client_id = ""
 
     @staticmethod
     def hash_password(password):
@@ -61,7 +59,9 @@ class Client:
 
                 if server_answer == "!successful":
                     print("You are logged in")
-                    menu_thread = threading.Thread(target=self.login_menu, args=(username_input,))
+                    client_id = self.client_socket.recv(512)
+                    client_id_decoded = client_id.decode("utf-8")
+                    menu_thread = threading.Thread(target=self.login_menu, args=(username_input, client_id_decoded))
                     menu_thread.start()
                     break
                 elif server_answer == "!login failed":
@@ -84,8 +84,10 @@ class Client:
                     print(server_answer.strip("!"))
                     continue
                 elif server_answer == "!successful":
+                    client_id = self.client_socket.recv(512)
+                    client_id_decoded = client_id.decode("utf-8")
                     print("Your account has been created")
-                    menu_thread = threading.Thread(target=self.login_menu, args=(username_input,))
+                    menu_thread = threading.Thread(target=self.login_menu, args=(username_input, client_id_decoded))
                     menu_thread.start()
                     break
             elif check_account == "!quit":
@@ -93,7 +95,9 @@ class Client:
             else:
                 continue
 
-    def login_menu(self, username):
+
+    #add client id at function call parameter
+    def login_menu(self, username, client_id):
         print("Type !exit to return to menu")
 
         while True:
@@ -121,9 +125,9 @@ class Client:
                             chat_member_ids_parts = chat_member_ids_decoded.split("|")
 
                             target_id = chat_member_ids_parts[0]
-                            self.client_id = chat_member_ids_parts[1]
+                            client_id = chat_member_ids_parts[1]
                             self.client_socket.send(bytes(target_id, "utf8"))
-                            self.chat(target_username, target_id, username)
+                            self.chat(target_username, target_id, client_id, username)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
                             break
@@ -139,9 +143,8 @@ class Client:
                     print()
                 self.client_socket.send(bytes("!create_group", "utf8"))
                 group_name = input("Specify a name for the group: ")
-                self.client_socket.send(bytes(group_name, "utf8"))
-                self.client_socket.send(bytes(self.client_id, "utf8"))
 
+                self.client_socket.send(bytes(f"{group_name}|{username}", "utf8"))
                 answer = self.client_socket.recv(512)
                 answer_decoded = answer.decode("utf8")
                 print(answer_decoded)
@@ -151,12 +154,12 @@ class Client:
             else:
                 continue
 
-    def chat(self, chat_target_name, target_id, username):
+    def chat(self, chat_target_name, target_id, client_id, username):
         print("This is a chat with:", chat_target_name)
         for i in range(5):
             print("")
 
-        self.receive_and_display_chat_history(self.client_id, chat_target_name)
+        self.receive_and_display_chat_history(client_id, chat_target_name)
         receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name,))
         receive_target_messages_process.start()
         while True:
@@ -169,11 +172,11 @@ class Client:
                 break
             else:
                 try:
-                    self.client_socket.send(bytes(f"{target_id}|{self.client_id}|{message}", "utf8"))
+                    self.client_socket.send(bytes(f"{target_id}|{client_id}|{message}", "utf8"))
                 except BrokenPipeError:
                     continue
 
-        self.login_menu(username)
+        self.login_menu(username, client_id)
 
     def recv_messages(self, chat_target_name):
         while True:
