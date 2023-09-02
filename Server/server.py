@@ -197,18 +197,46 @@ class Server(group_manager.GroupManager):
                 admin_id = parts[1]
                 group_admin_id = self.get_user_id(admin_id)
 
-                if group_manager.GroupManager.create_group(self, group_name, group_admin_id):
-                    client_socket.send(bytes("Group was created", "utf8"))
-                    print("weiter")
-                else:
-                    print("else")
-                    client_socket.send(bytes("An error occurred please try again later", "utf8"))
+                if group_admin_id:
+                    if group_manager.GroupManager.create_group(self, group_name, group_admin_id):
+                        client_socket.send(bytes("Group was created", "utf8"))
+                        print("weiter")
+                    else:
+                        print("else")
+                        client_socket.send(bytes("An error occurred please try again later", "utf8"))
 
-            if received_data.startswith("!leave_group") and client_login:
-                pass
             if received_data.startswith("!add_user_to_group") and client_login:
-                pass
+                user_to_group_data = client_socket.recv(512)
+                user_to_group_data_decoded = user_to_group_data.decode("utf8")
+                try:
+                    parts = user_to_group_data_decoded.split("|")
+                    user_to_add = parts[0]
+                    group_to_add = parts[1]
+                    client_id = parts[2]
+                    group_id = self.get_group_id_by_name(group_to_add)
+                    admin_id = self.get_group_admin(client_id)
+                    user_id_to_add = self.get_user_id(user_to_add)
+
+                    if admin_id == client_id:
+                        if user_id_to_add:
+                            if not group_id:
+                                client_socket.send(bytes("An error occurred while adding user to group", "utf8"))
+                            else:
+
+                                group_manager.GroupManager.add_user_to_group(self, group_id, user_id_to_add)
+                                client_socket.send(bytes(f"User was successfully added to {group_to_add}", "utf8"))
+                        else:
+                            client_socket.send(bytes("This user does not exist", "utf8"))
+
+                    else:
+                        client_socket.send(bytes(f"You are not the owner of the group {group_to_add}", "utf8"))
+
+                except (IndexError, UnicodeDecodeError):
+                    client_socket.send(bytes("An error occurred while adding user to group", "utf8"))
+
             if received_data.startswith("!remove_user_from_group") and client_login:
+                pass
+            if received_data.startswith("!leave_group") and client_login:
                 pass
             if received_data.startswith("!get_group_members") and client_login:
                 pass
@@ -221,6 +249,34 @@ class Server(group_manager.GroupManager):
                 pass
 
             self.check_client_is_online(client_socket, received_data)
+
+    def get_group_admin(self, client_id):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT group_admin_id FROM GroupChats WHERE group_admin_id = %s", (client_id,))
+            admin_id = self.mycursor.fetchall()
+        finally:
+            lock.release()
+
+        if admin_id is not None:
+            return str(admin_id).strip("()[],")
+        else:
+            return False
+
+    def get_group_id_by_name(self, group_name):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT group_id FROM GroupChats WHERE group_name = %s", (group_name,))
+            group_id = self.mycursor.fetchall()
+        finally:
+            lock.release()
+
+        if group_id is not None:
+            return str(group_id).strip("(),[]")
+        else:
+            return False
 
     def handle_client_login(self, client_socket, json_data):
         client_id = self.get_user_id(json_data["username"])
@@ -242,13 +298,15 @@ class Server(group_manager.GroupManager):
 
     def get_chat_history(self, client_id, other_client_id):
         lock = threading.Lock()
-        lock.acquire()
-        self.mycursor.execute(
-            "SELECT receiver_id, sender_id, message FROM ChatHistory WHERE (receiver_id = %s AND sender_id = %s) OR (receiver_id = %s AND sender_id = %s) ORDER BY id DESC LIMIT 15",
-            (client_id, other_client_id, other_client_id, client_id))
-        chat_history = self.mycursor.fetchall()
-        lock.release()
-        print(chat_history)
+        try:
+            lock.acquire()
+            self.mycursor.execute(
+                "SELECT receiver_id, sender_id, message FROM ChatHistory WHERE (receiver_id = %s AND sender_id = %s) OR (receiver_id = %s AND sender_id = %s) ORDER BY id DESC LIMIT 15",
+                (client_id, other_client_id, other_client_id, client_id))
+            chat_history = self.mycursor.fetchall()
+        finally:
+            lock.release()
+
         return chat_history
 
     def overwrite_client_adress(self, client_adress, username):
@@ -265,10 +323,13 @@ class Server(group_manager.GroupManager):
             try:
                 self.mycursor.execute("SELECT * FROM Users WHERE username = %s AND password = %s", (username, password))
                 result = self.mycursor.fetchone()
-                lock.release()
-                return result is not None
+
             except mysql.connector.errors.OperationalError:
                 continue
+            else:
+                return result is not None
+            finally:
+                lock.release()
 
     def is_user_registered(self, username):
         lock = threading.Lock()
@@ -279,37 +340,45 @@ class Server(group_manager.GroupManager):
         return result is not None
 
     def register_in_db(self, user_credentials, client_adress):
-        print(user_credentials["password"])
         lock = threading.Lock()
-        lock.acquire()
-        self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
-                              (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
-        self.mydb.commit()
-        lock.release()
+        try:
+            lock.acquire()
+            self.mycursor.execute("INSERT INTO Users (username, password, ip, port) VALUES (%s, %s, %s, %s)",
+                                  (user_credentials["username"], user_credentials["password"], client_adress[0], client_adress[1]))
+            self.mydb.commit()
+        finally:
+            lock.release()
 
     def get_chat_member_ids(self, target_username, username):
-        print(target_username)
         lock = threading.Lock()
-        lock.acquire()
-        self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (target_username,))
-        receiver_user_id = self.mycursor.fetchone()
-        print(receiver_user_id)
-        self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
-        sender_id = self.mycursor.fetchone()
-        lock.release()
-        print(receiver_user_id)
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (target_username,))
+            receiver_user_id = self.mycursor.fetchone()
+
+            self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
+            sender_id = self.mycursor.fetchone()
+        finally:
+            lock.release()
+
         ids = [receiver_user_id, sender_id]
         return ids
 
     def get_user_id(self, username):
         lock = threading.Lock()
-        lock.acquire()
-        self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
-        identifier = self.mycursor.fetchone()
-        lock.release()
-        identifier = str(identifier).strip("(), ")
-        print("client id is:", identifier)
-        return int(identifier)
+
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT id FROM Users WHERE username = %s", (username,))
+            identifier = self.mycursor.fetchone()
+        finally:
+            lock.release()
+
+        if identifier is not None:
+            decoded_identifier = str(identifier).strip("(), ")
+            return int(decoded_identifier)
+        else:
+            return False
 
     def send_message_to_target(self, receiver_id, sender_id, message):
         print("receiver id: ", receiver_id)
@@ -324,21 +393,24 @@ class Server(group_manager.GroupManager):
 
     def get_username(self, sender_id):
         lock = threading.Lock()
-        lock.acquire()
-        self.mycursor.execute("SELECT username FROM Users WHERE id = %s", (sender_id,))
-        lock.release()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT username FROM Users WHERE id = %s", (sender_id,))
+        finally:
+            lock.release()
         username = self.mycursor.fetchone()
         striped_username = str(username).strip("(),' ")
         return striped_username
 
     def insert_chat_message(self, receiver_id, sender_id, message):
         lock = threading.Lock()
-        lock.acquire()
-        print(message)
-        self.mycursor.execute("INSERT INTO ChatHistory (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
-                              (sender_id, receiver_id, message))
-        self.mydb.commit()
-        lock.release()
+        try:
+            lock.acquire()
+            self.mycursor.execute("INSERT INTO ChatHistory (sender_id, receiver_id, message) VALUES (%s, %s, %s)",
+                                  (sender_id, receiver_id, message))
+            self.mydb.commit()
+        finally:
+            lock.release()
         self.send_message_to_target(receiver_id, sender_id, message)
 
 

@@ -148,9 +148,18 @@ class Client:
                 answer = self.client_socket.recv(512)
                 answer_decoded = answer.decode("utf8")
                 print(answer_decoded)
+
+            elif commands == "add_user":
+                self.client_socket.send(bytes("!add_user_to_group", "utf8"))
+                user = input("Which user do you want to add to your group: ")
+                group_to_add_user = input(f"In which group do you want to add: {user}" )
+
+                user_to_add_data = f"{user}|{group_to_add_user}|{client_id}"
+                self.client_socket.send(bytes(user_to_add_data, "utf8"))
+                answer = self.client_socket.recv(512)
+                print(answer.decode("utf8"))
             elif commands == "!quit":
                 quit()
-
             else:
                 continue
 

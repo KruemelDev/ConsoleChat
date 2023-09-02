@@ -17,22 +17,29 @@ class GroupManager:
             print(e)
 
         self.mycursor = self.mydb.cursor(buffered=True)
-        self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
         self.mycursor.execute("USE consolechat")
 
     def create_group(self, group_name: str, admin_id: int) -> bool:
-        print(group_name)
         lock = threading.Lock()
-        lock.acquire()
-        print(group_name)
-        self.mycursor.execute("INSERT INTO GroupChats (group_name, group_admin_id) VALUES (%s, %s)", (group_name, admin_id))
-        self.mydb.commit()
-        lock.release()
+        try:
+            lock.acquire()
+            print(group_name)
+            self.mycursor.execute("INSERT INTO GroupChats (group_name, group_admin_id) VALUES (%s, %s)", (group_name, admin_id))
+            self.mydb.commit()
+        finally:
+            lock.release()
         return True
 
-    def add_user_to_group(self, group_id: int, user_id: str):
-        pass
-        # Add a user to a group
+    def add_user_to_group(self, group_id: int, user_id_to_add: int):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+
+            self.mycursor.execute("INSERT INTO GroupMembers (group_id, user_id) VALUES (%s, %s)", (group_id, user_id_to_add))
+            self.mydb.commit()
+        finally:
+            lock.release()
+        return True
 
     def remove_user_from_group(self, group_id: int, user_id: int):
         pass
