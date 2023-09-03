@@ -95,8 +95,6 @@ class Client:
             else:
                 continue
 
-
-    #add client id at function call parameter
     def login_menu(self, username, client_id):
         print("Type !exit to return to menu")
 
@@ -106,7 +104,11 @@ class Client:
                 print("Type: \n"
                       "help - list all commands\n"
                       "chat - chat with a single person\n"
-                      "createGroup - create a group for a groupChat")
+                      "createGroup - create a group for a groupChat\n"
+                      "addUser - adds a user to your group\n"
+                      "removeUser - removes a user of you group\n"
+                      "leaveGroup - leave a group")
+
             elif commands == "chat":
                 self.client_socket.send(bytes("!chat", "utf8"))
                 while True:
@@ -149,17 +151,36 @@ class Client:
                 answer_decoded = answer.decode("utf8")
                 print(answer_decoded)
 
-            elif commands == "add_user":
+            elif commands == "addUser":
                 self.client_socket.send(bytes("!add_user_to_group", "utf8"))
                 user = input("Which user do you want to add to your group: ")
-                group_to_add_user = input(f"In which group do you want to add: {user}" )
+                group_to_add_user = input(f"In which group do you want to add {user}: ")
 
                 user_to_add_data = f"{user}|{group_to_add_user}|{client_id}"
                 self.client_socket.send(bytes(user_to_add_data, "utf8"))
                 answer = self.client_socket.recv(512)
                 print(answer.decode("utf8"))
+
+            elif commands == "removeUser":
+                self.client_socket.send(bytes("!remove_user_from_group", "utf8"))
+                user = input("Which user do you want to remove from your group: ")
+                group_to_remove_user = input(f"In which group do you want to delete {user}: ")
+
+                user_to_remove_data = f"{user}|{group_to_remove_user}|{client_id}"
+                self.client_socket.send(bytes(user_to_remove_data, "utf8"))
+                answer = self.client_socket.recv(512)
+                print(answer.decode("utf8"))
             elif commands == "!quit":
                 quit()
+            elif commands == "leaveGroup":
+                self.client_socket.send(bytes("!leave_group", "utf8"))
+                group_to_leave = input("Which group do you want to leave: ")
+                next_admin = input("Who should become the next admin of the group?")
+                leave_group_data = f"{group_to_leave}|{next_admin}|{client_id}"
+                self.client_socket.send(bytes(leave_group_data, "utf8"))
+                answer = self.client_socket.recv(512)
+                print(answer.decode("utf8"))
+
             else:
                 continue
 
