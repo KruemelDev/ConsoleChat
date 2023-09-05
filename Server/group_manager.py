@@ -1,6 +1,5 @@
 import mysql.connector
 import threading
-from typing import Tuple
 
 
 class GroupManager:
@@ -93,11 +92,17 @@ class GroupManager:
             return members
         finally:
             lock.release()
-        # Get a list of members in a group
 
-    def get_user_groups(self, user_id: int) -> Tuple:
-        pass
-        # Get a list of groups a user is a member of
+    def get_user_groups(self, user_id: int) -> list:
+
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT group_id FROM GroupMembers WHERE user_id = %s", (user_id,))
+            groups = self.mycursor.fetchall()
+            return groups
+        finally:
+            lock.release()
 
     def send_group_message(self, group_id: int, sender_id: int, message: str):
         pass

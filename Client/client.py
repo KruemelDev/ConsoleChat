@@ -4,6 +4,7 @@ import hashlib
 import json
 import ast
 import multiprocessing
+import time
 
 
 class Client:
@@ -180,7 +181,7 @@ class Client:
                 answer = self.client_socket.recv(512)
                 print(answer.decode("utf8"))
 
-            elif commands == "getGroupMember":
+            elif commands == "groupMember":
                 self.client_socket.send(bytes("!get_group_members", "utf8"))
                 group_to_get_members = input("Of which group do you want to get the members: ")
                 leave_group_data = f"{group_to_get_members}|{client_id}"
@@ -189,11 +190,27 @@ class Client:
                 answer = answer.decode("utf8")
                 if "|" in answer:
                     members = answer.split("|")
-                    print(f"Your group has {len(members)} members.")
-                    print("In you group are these members:")
+                    print(f"Your group has {len(members) - 1} members.")
+                    print("In your group are these members:")
 
                     for member in members:
                         print(member)
+                else:
+                    print(answer)
+
+            elif commands == "groups":
+                self.client_socket.send(bytes("!get_user_groups", "utf8"))
+                time.sleep(0.1)
+                self.client_socket.send(bytes(client_id, "utf8"))
+                answer = self.client_socket.recv(512)
+                answer = answer.decode("utf8")
+                if "|" in answer:
+                    groups = answer.split("|")
+                    print(f"Your are in {len(groups) - 1} groups.")
+                    print("You have these groups:")
+
+                    for group in groups:
+                        print(group)
                 else:
                     print(answer)
 

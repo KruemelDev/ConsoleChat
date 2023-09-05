@@ -5,7 +5,6 @@ import json
 import group_manager
 
 
-
 class Server(group_manager.GroupManager):
 
     def __init__(self):
@@ -314,7 +313,23 @@ class Server(group_manager.GroupManager):
                     client_socket.send(bytes("An error occurred while leaving the group", "utf8"))
 
             if received_data.startswith("!get_user_groups") and client_login:
-                pass
+                client_id = client_socket.recv(512)
+                client_id = client_id.decode("utf8")
+                try:
+                    groups = group_manager.GroupManager.get_user_groups(self, client_id)
+                    print(groups)
+                    group_list = ""
+                    for group in groups:
+                        group = str(group).strip("(), ")
+                        group_name = self.get_group_name(group)
+                        print(group_name)
+                        group_list = group_list + f"{group_name}|"
+
+                    print(group_list)
+                    client_socket.send(bytes(group_list, "utf8"))
+
+                except (IndexError, UnicodeDecodeError):
+                    client_socket.send(bytes("An error occurred while leaving the group", "utf8"))
             # have to be overworked
             if received_data.startswith("!send") and client_login:
                 pass
@@ -322,6 +337,19 @@ class Server(group_manager.GroupManager):
                 pass
 
             self.check_client_is_online(client_socket, received_data)
+
+    def get_group_name(self, group_id):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT group_name FROM GroupChats WHERE group_id = %s", (group_id,))
+            group_name = self.mycursor.fetchone()
+            if group_name is not None:
+                return str(group_name).strip("(),' ")
+            else:
+                return False
+        finally:
+            lock.release()
 
     def user_in_group(self, user_id, group_id):
         lock = threading.Lock()
@@ -498,14 +526,6 @@ class Server(group_manager.GroupManager):
         finally:
             lock.release()
         self.send_message_to_target(receiver_id, sender_id, message)
-
-
-class Login(Server):
-    def __init__(self):
-        pass
-
-    def register(self):
-        pass
 
     
 if __name__ == "__main__":
