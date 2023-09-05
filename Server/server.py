@@ -5,6 +5,7 @@ import json
 import group_manager
 
 
+
 class Server(group_manager.GroupManager):
 
     def __init__(self):
@@ -79,8 +80,8 @@ class Server(group_manager.GroupManager):
             if received_data.startswith("!signin"):
                 signin_credentials = client_socket.recv(1024)
                 if self.check_client_is_online(client_socket, signin_credentials):
-                    signin_credentials_decoded = signin_credentials.decode("utf-8")
-                    json_data = json.loads(signin_credentials_decoded)
+                    signin_credentials = signin_credentials.decode("utf-8")
+                    json_data = json.loads(signin_credentials)
                     print(json_data)
                     print("The received password is: ", json_data["password"])
                     print("The received username is: ", json_data["username"])
@@ -136,8 +137,8 @@ class Server(group_manager.GroupManager):
 
                         if self.check_client_is_online(client_socket, chat_members):
 
-                            chat_members_decoded = chat_members.decode("utf-8")
-                            chat_members_parts = chat_members_decoded.split("|")
+                            chat_members = chat_members.decode("utf-8")
+                            chat_members_parts = chat_members.split("|")
 
                             target_username = chat_members_parts[0]
                             print(target_username)
@@ -166,22 +167,22 @@ class Server(group_manager.GroupManager):
                 print("Client socket in dict: ", client_socket)
 
                 target_id = client_socket.recv(256)
-                target_id_decoded = str(target_id.decode("utf-8")).strip("(),")
-                print("target id:", target_id_decoded)
-                chat_history = self.get_chat_history(self.client_id[client_socket], target_id_decoded)
+                target_id = str(target_id.decode("utf-8")).strip("(), ")
+                print("target id:", target_id)
+                chat_history = self.get_chat_history(self.client_id[client_socket], target_id)
                 client_socket.send(bytes(str(chat_history), "utf8"))
 
                 while True:
                     msg = client_socket.recv(512)
-                    msg_decoded = msg.decode("utf-8")
-                    parts = msg_decoded.split("|")
-                    if msg_decoded == "!exit":
+                    msg = msg.decode("utf-8")
+                    parts = msg.split("|")
+                    if msg == "!exit":
                         break
                     if self.check_client_is_online(client_socket, msg):
                         if len(parts) != 3:
                             client_socket.close()
-                        receiver_id = int(parts[0].strip("()").rstrip(','))
-                        client_id = int(parts[1].strip("()").rstrip(','))
+                        receiver_id = int(parts[0].strip("(), "))
+                        client_id = int(parts[1].strip("(), "))
                         message = parts[2]
                         self.insert_chat_message(receiver_id, client_id, message)
 
@@ -189,9 +190,9 @@ class Server(group_manager.GroupManager):
 
             if received_data.startswith("!create_group") and client_login:
                 group_information = client_socket.recv(512)
-                group_information_decoded = group_information.decode("utf8")
+                group_information = group_information.decode("utf8")
                 try:
-                    parts = group_information_decoded.split("|")
+                    parts = group_information.split("|")
                     group_name = parts[0]
                     admin_id = parts[1]
                     group_admin_id = self.get_user_id(admin_id)
@@ -207,9 +208,9 @@ class Server(group_manager.GroupManager):
 
             if received_data.startswith("!add_user_to_group") and client_login:
                 user_to_add_group_data = client_socket.recv(512)
-                user_to_add_group_data_decoded = user_to_add_group_data.decode("utf8")
+                user_to_add_group_data = user_to_add_group_data.decode("utf8")
                 try:
-                    parts = user_to_add_group_data_decoded.split("|")
+                    parts = user_to_add_group_data.split("|")
                     user_to_add = parts[0]
                     group_to_add = parts[1]
                     client_id = parts[2]
@@ -237,9 +238,9 @@ class Server(group_manager.GroupManager):
 
             if received_data.startswith("!remove_user_from_group") and client_login:
                 user_to_remove_group_data = client_socket.recv(512)
-                user_to_remove_group_data_decoded = user_to_remove_group_data.decode("utf8")
+                user_to_remove_group_data = user_to_remove_group_data.decode("utf8")
                 try:
-                    parts = user_to_remove_group_data_decoded.split("|")
+                    parts = user_to_remove_group_data.split("|")
                     user_to_remove = parts[0]
                     group_to_remove = parts[1]
                     client_id = parts[2]
@@ -266,9 +267,9 @@ class Server(group_manager.GroupManager):
 
             if received_data.startswith("!leave_group") and client_login:
                 user_to_leave_data = client_socket.recv(512)
-                user_to_leave_data_decoded = user_to_leave_data.decode("utf8")
+                user_to_leave_data = user_to_leave_data.decode("utf8")
                 try:
-                    parts = user_to_leave_data_decoded.split("|")
+                    parts = user_to_leave_data.split("|")
                     group_to_leave = parts[0]
                     next_admin = parts[1]
                     user_id = parts[2]
@@ -290,7 +291,28 @@ class Server(group_manager.GroupManager):
                     client_socket.send(bytes("An error occurred while leaving the group", "utf8"))
 
             if received_data.startswith("!get_group_members") and client_login:
-                pass
+                group_to_get_members_from = client_socket.recv(512)
+                group_to_get_members_from = group_to_get_members_from.decode("utf8")
+                try:
+                    parts = group_to_get_members_from.split("|")
+                    group = parts[0]
+                    client_id = parts[1]
+                    group_id = self.get_group_id_by_name(group)
+
+                    if self.user_in_group(client_id, group_id):
+                        group_members = group_manager.GroupManager.get_group_members(self, group_id)
+                        members = ""
+                        for member in group_members:
+                            member = str(member).strip("(), ")
+                            username = self.get_username(member)
+                            members = members + f"{username}|"
+                        client_socket.send(bytes(members, "utf8"))
+                    else:
+                        client_socket.send(bytes("You are not in this group or this group does not exist", "utf8"))
+
+                except (IndexError, UnicodeDecodeError):
+                    client_socket.send(bytes("An error occurred while leaving the group", "utf8"))
+
             if received_data.startswith("!get_user_groups") and client_login:
                 pass
             # have to be overworked
@@ -436,32 +458,35 @@ class Server(group_manager.GroupManager):
             lock.release()
 
         if identifier is not None:
-            decoded_identifier = str(identifier).strip("(), ")
-            return int(decoded_identifier)
+            identifier = str(identifier).strip("(), ")
+            return int(identifier)
         else:
             return False
 
     def send_message_to_target(self, receiver_id, sender_id, message):
-        print("receiver id: ", receiver_id)
-        print("keys", self.clients.keys())
         try:
             username = self.get_username(sender_id)
-            receiver = self.clients[str(receiver_id)]
-            print(receiver)
-            receiver.send(bytes(f"{username}:{message}", "utf8"))
+            if username:
+                receiver = self.clients[str(receiver_id)]
+                receiver.send(bytes(f"{username}:{message}", "utf8"))
+            else:
+                return
         except KeyError as e:
             print(e)
 
-    def get_username(self, sender_id):
+    def get_username(self, client_id):
         lock = threading.Lock()
         try:
             lock.acquire()
-            self.mycursor.execute("SELECT username FROM Users WHERE id = %s", (sender_id,))
+            self.mycursor.execute("SELECT username FROM Users WHERE id = %s", (client_id,))
         finally:
             lock.release()
         username = self.mycursor.fetchone()
-        striped_username = str(username).strip("(),' ")
-        return striped_username
+        username = str(username).strip("(),' ")
+        if username is None:
+            return False
+        else:
+            return username
 
     def insert_chat_message(self, receiver_id, sender_id, message):
         lock = threading.Lock()
@@ -475,6 +500,14 @@ class Server(group_manager.GroupManager):
         self.send_message_to_target(receiver_id, sender_id, message)
 
 
+class Login(Server):
+    def __init__(self):
+        pass
+
+    def register(self):
+        pass
+
+    
 if __name__ == "__main__":
     server = Server()
     server.start_server()

@@ -84,8 +84,15 @@ class GroupManager:
             lock.release()
         return True
 
-    def get_group_members(self, group_id: int) -> Tuple:
-        pass
+    def get_group_members(self, group_id: int) -> list:
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT user_id FROM GroupMembers WHERE group_id = %s", (group_id,))
+            members = self.mycursor.fetchall()
+            return members
+        finally:
+            lock.release()
         # Get a list of members in a group
 
     def get_user_groups(self, user_id: int) -> Tuple:

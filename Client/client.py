@@ -170,8 +170,7 @@ class Client:
                 self.client_socket.send(bytes(user_to_remove_data, "utf8"))
                 answer = self.client_socket.recv(512)
                 print(answer.decode("utf8"))
-            elif commands == "!quit":
-                quit()
+
             elif commands == "leaveGroup":
                 self.client_socket.send(bytes("!leave_group", "utf8"))
                 group_to_leave = input("Which group do you want to leave: ")
@@ -181,6 +180,25 @@ class Client:
                 answer = self.client_socket.recv(512)
                 print(answer.decode("utf8"))
 
+            elif commands == "getGroupMember":
+                self.client_socket.send(bytes("!get_group_members", "utf8"))
+                group_to_get_members = input("Of which group do you want to get the members: ")
+                leave_group_data = f"{group_to_get_members}|{client_id}"
+                self.client_socket.send(bytes(leave_group_data, "utf8"))
+                answer = self.client_socket.recv(512)
+                answer = answer.decode("utf8")
+                if "|" in answer:
+                    members = answer.split("|")
+                    print(f"Your group has {len(members)} members.")
+                    print("In you group are these members:")
+
+                    for member in members:
+                        print(member)
+                else:
+                    print(answer)
+
+            elif commands == "!quit":
+                quit()
             else:
                 continue
 
