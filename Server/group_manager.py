@@ -104,8 +104,27 @@ class GroupManager:
         finally:
             lock.release()
 
-    def send_group_message(self, group_id: int, sender_id: int, message: str):
-        pass
+    def get_username(self, user_id):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT ")
+
+    def send_group_message(self, sender_id: int, group_id: int, message: str, clients: dict, client_id: dict):
+        group_members = self.get_group_members(group_id)
+        members = ""
+        for member in group_members:
+            member = str(member).strip("(), ")
+            members = members + f"{member}|"
+
+        member_parts = members.split()
+        for i in member_parts:
+            for j in clients:
+                if clients[member_parts]:
+                    client_socket = clients[member_parts]
+
+                    client_socket.send(bytes(f""))
+
         # Send a message to all members of a group
 
     def delete_group(self, group_id: int):

@@ -65,8 +65,6 @@ class Server(group_manager.GroupManager):
             handle_process.start()
 
     def handle_client(self, client_socket, client_adress):
-        self.clients[client_socket] = client_adress
-        print(self.clients)
         client_login = False
 
         while True:
@@ -331,8 +329,24 @@ class Server(group_manager.GroupManager):
                 except (IndexError, UnicodeDecodeError):
                     client_socket.send(bytes("An error occurred while leaving the group", "utf8"))
             # have to be overworked
-            if received_data.startswith("!send") and client_login:
-                pass
+            if received_data.startswith("!group_chat") and client_login:
+                group_to_send_data = client_socket.recv(512)
+                group_to_send_data = group_to_send_data.decode("utf8")
+                parts = group_to_send_data.split("|")
+                if len(parts) == 3:
+
+                    user_id = parts[0]
+                    group_name = parts[1]
+                    message = parts[2]
+                    group_id = self.get_group_id_by_name(group_name)
+
+                    if self.user_in_group(user_id, group_id):
+                        group_manager.GroupManager.send_group_message(self, user_id, group_id, message, self.clients, self.client_id)
+                    else:
+                        client_socket.send("You are not in this group.")
+                else:
+                    client_socket.send("An error occurred while sending the message.")
+
             if received_data.startswith("!delete_group") and client_login:
                 pass
 
