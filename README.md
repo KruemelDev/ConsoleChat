@@ -19,11 +19,11 @@ This messanger is not recommended for sending confidential data, such as passwor
   
 -  ## Install packages
     - Execute this to install requirements: ````pip install -r requirements.txt````
-         
+
+- Change the [Linktext](Server/.env) file with your server properties
 - Now run the server.py file
 - Next, you can run the client.py file, but make sure you connect to the same IP and port that the socket is running on
 
 ## Planed Features
 
-- A chat history
-- Timeout for the user if he/she is afk for a long time
+- Group chat function
