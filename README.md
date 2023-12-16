@@ -20,7 +20,7 @@ This messanger is not recommended for sending confidential data, such as passwor
 -  ## Install packages
     - Execute this to install requirements: ````pip install -r requirements.txt````
 
-- Change the [Linktext](Server/.env) file with your server properties
+- Open and edit the [.env](Server/.env) file to configure your server properties
 - Now run the server.py file
 - Next, you can run the client.py file, but make sure you connect to the same IP and port that the socket is running on
 
