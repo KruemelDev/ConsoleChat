@@ -1,24 +1,32 @@
 import socket
-import mysql.connector
 import threading
 import json
 import group_manager
+import mysql.connector
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class Server(group_manager.GroupManager):
 
     def __init__(self):
+        db_password = os.getenv("DB_PASSWORD")
+        ip_address = os.getenv("IP_ADDRESS")
+        std_port = os.getenv("STD_PORT")
+        max_clients = os.getenv("MAX_CLIENTS")
 
-        db_password = input("Enter you db password to connect to the database: ")
+        if ip_address is None:
+            ip_address = input("Enter your ip address: ")
+        if std_port is None:
+            std_port = input("Enter the port for your server: ")
+        if db_password is None:
+            db_password = input("Enter your db password to connect to the database: ")
+        if max_clients is None:
+            max_clients = input("Specify how many clients can connect at the same time: ")
+
         super().__init__(db_password)
-        while True:
-            port = input("Specify the port where the socket should run: ")
-            try:
-                self.port_to_int = int(port)
-                if self.port_to_int < 65535:
-                    break
-            except ValueError as e:
-                print(e)
 
         try:
             self.mydb = mysql.connector.connect(
@@ -38,18 +46,17 @@ class Server(group_manager.GroupManager):
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS GroupChats (group_id INT AUTO_INCREMENT PRIMARY KEY, group_name VARCHAR(255), admin_id INT)")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS GroupMembers (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, user_id INT)")
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.hostname = socket.gethostname()
-        amount_clients = input("Specify how many clients can connect at the same time: ")
-        print(self.hostname)
+
         try:
-            print(socket.gethostbyname(self.hostname))
-            self.server_address = ("192.168.66.58", self.port_to_int)
+            self.server_address = (str(ip_address), int(std_port))
             self.server_socket.bind(self.server_address)
-            self.server_socket.listen(int(amount_clients))
+            self.server_socket.listen(int(max_clients))
         except OSError as e:
-            print(e)
+            print("Error with connecting to the server. Make sure your ip address and port is correct.")
+            quit()
         except ValueError as e:
-            print(e)
+            print("Error with connecting to the server. Make sure your ip address and port is correct.")
+            quit()
 
         self.clients = {}
         self.client_id = {}
@@ -58,8 +65,6 @@ class Server(group_manager.GroupManager):
         while True:
             client_socket, client_adress = self.server_socket.accept()
             print(f"Connection established from {client_adress}")
-            self.clients[client_socket] = client_adress
-            print(self.clients)
 
             handle_process = threading.Thread(target=self.handle_client, args=(client_socket, client_adress))
             handle_process.start()
@@ -159,15 +164,14 @@ class Server(group_manager.GroupManager):
                 else:
                     break
 
-                print("keys: ", self.client_id.keys())
-                print("Client socket: ", client_socket)
-                print("Client socket in dict: ", client_socket)
-
                 target_id = client_socket.recv(256)
                 target_id = str(target_id.decode("utf-8")).strip("(), ")
                 print("target id:", target_id)
                 chat_history = self.get_chat_history(self.client_id[client_socket], target_id)
-                client_socket.send(bytes(str(chat_history), "utf8"))
+                try:
+                    client_socket.send(bytes(str(chat_history), "utf8"))
+                except BrokenPipeError:
+                    print("Cannot send chat history")
 
                 while True:
                     msg = client_socket.recv(512)
@@ -341,7 +345,7 @@ class Server(group_manager.GroupManager):
                     group_id = self.get_group_id_by_name(group_name)
 
                     if self.user_in_group(user_id, group_id):
-                        group_manager.GroupManager.send_group_message(self, user_id, group_id, message, self.clients, self.client_id)
+                        group_manager.GroupManager.send_group_message(self, user_id, group_id, message, self.clients, self.clients)
                     else:
                         client_socket.send("You are not in this group.")
                 else:
@@ -408,7 +412,7 @@ class Server(group_manager.GroupManager):
         client_socket.send(bytes(str(client_id), "utf8"))
         lock = threading.Lock()
         lock.acquire()
-        self.clients[client_id] = client_socket
+        self.clients.update({client_id: client_socket})
         self.client_id[client_socket] = client_id
         lock.release()
 
@@ -508,13 +512,12 @@ class Server(group_manager.GroupManager):
     def send_message_to_target(self, receiver_id, sender_id, message):
         try:
             username = self.get_username(sender_id)
-            if username:
-                receiver = self.clients[str(receiver_id)]
-                receiver.send(bytes(f"{username}:{message}", "utf8"))
-            else:
-                return
+            if not username:
+                return False
+            receiver = self.clients[receiver_id]
+            receiver.send(bytes(f"{username}:{message}", "utf8"))
         except KeyError as e:
-            print(e)
+            print("User is not online")
 
     def get_username(self, client_id):
         lock = threading.Lock()
@@ -525,6 +528,7 @@ class Server(group_manager.GroupManager):
             lock.release()
         username = self.mycursor.fetchone()
         username = str(username).strip("(),' ")
+        print(username)
         if username is None:
             return False
         else:

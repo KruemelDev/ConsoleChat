@@ -105,10 +105,11 @@ class GroupManager:
             lock.release()
 
     def get_username(self, user_id):
-        lock = threading.Lock()
-        try:
-            lock.acquire()
-            self.mycursor.execute("SELECT ")
+        #lock = threading.Lock()
+        #try:
+         #   lock.acquire()
+          #  self.mycursor.execute("SELECT ")
+        pass
 
     def send_group_message(self, sender_id: int, group_id: int, message: str, clients: dict, client_id: dict):
         group_members = self.get_group_members(group_id)

@@ -100,14 +100,14 @@ class Client:
         print("Type !exit to return to menu")
 
         while True:
-            commands = input("Type commands to see all commands: ")
+            commands = input("Type help to see all commands: ")
             if commands == "help":
                 print("Type: \n"
                       "help - list all commands\n"
                       "chat - chat with a single person\n"
                       "createGroup - create a group for a groupChat\n"
                       "addUser - adds a user to your group\n"
-                      "removeUser - removes a user of you group\n"
+                      "removeUser - removes a user of your group\n"
                       "leaveGroup - leave a group")
 
             elif commands == "chat":
