@@ -108,7 +108,9 @@ class Client:
                       "createGroup - create a group for a groupChat\n"
                       "addUser - adds a user to your group\n"
                       "removeUser - removes a user of your group\n"
-                      "leaveGroup - leave a group")
+                      "leaveGroup - leave a group\n"
+                      "groupMember - prints all members in your group\n"
+                      "groups - prints all groups you are in")
 
             elif commands == "chat":
                 self.client_socket.send(bytes("!chat", "utf8"))
@@ -184,8 +186,8 @@ class Client:
             elif commands == "groupMember":
                 self.client_socket.send(bytes("!get_group_members", "utf8"))
                 group_to_get_members = input("Of which group do you want to get the members: ")
-                leave_group_data = f"{group_to_get_members}|{client_id}"
-                self.client_socket.send(bytes(leave_group_data, "utf8"))
+                group_to_get_members_data = f"{group_to_get_members}|{client_id}"
+                self.client_socket.send(bytes(group_to_get_members_data, "utf8"))
                 answer = self.client_socket.recv(512)
                 answer = answer.decode("utf8")
                 if "|" in answer:
@@ -214,6 +216,17 @@ class Client:
                 else:
                     print(answer)
 
+            elif commands == "groupChat":
+                self.client_socket.send(bytes("!group_chat", "utf8"))
+                chat_group = input("In which group do you want to send messages: ")
+                self.client_socket.send(bytes(f"{chat_group}|{client_id}", "utf8"))
+                answer = self.client_socket.recv(512)
+                answer = answer.decode("utf8")
+
+                if answer == "!groupChat":
+                    pass
+                else:
+                    print(answer)
             elif commands == "!quit":
                 quit()
             else:

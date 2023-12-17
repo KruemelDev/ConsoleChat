@@ -35,8 +35,8 @@ class Server(group_manager.GroupManager):
                 user="root",
                 passwd=f"{db_password}"
             )
-        except mysql.connector.errors as e:
-            print(e)
+        except mysql.connector.errors:
+            print("Cant connect to database. Make sure your database is running and you use the correct password.")
 
         self.mycursor = self.mydb.cursor(buffered=True)
         self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
@@ -45,17 +45,18 @@ class Server(group_manager.GroupManager):
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (id INT AUTO_INCREMENT PRIMARY KEY, receiver_id INT, sender_id INT, message VARCHAR(512))")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS GroupChats (group_id INT AUTO_INCREMENT PRIMARY KEY, group_name VARCHAR(255), admin_id INT)")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS GroupMembers (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, user_id INT)")
+        self.mycursor.execute("CREATE TABLE IF NOT EXISTS GroupChatHistory (id INT AUTO_INCREMENT PRIMARY KEY, group_id INT, sender_id INT, message VARCHAR(512))")
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
         try:
             self.server_address = (str(ip_address), int(std_port))
             self.server_socket.bind(self.server_address)
             self.server_socket.listen(int(max_clients))
-        except OSError as e:
-            print("Error with connecting to the server. Make sure your ip address and port is correct.")
+        except OSError:
+            print("Error while trying to start server. Make sure your ip address and port is correct.")
             quit()
-        except ValueError as e:
-            print("Error with connecting to the server. Make sure your ip address and port is correct.")
+        except ValueError:
+            print("Error while trying to start server. Make sure your ip address and port is correct.")
             quit()
 
         self.clients = {}
@@ -85,8 +86,6 @@ class Server(group_manager.GroupManager):
                     signin_credentials = signin_credentials.decode("utf-8")
                     json_data = json.loads(signin_credentials)
                     print(json_data)
-                    print("The received password is: ", json_data["password"])
-                    print("The received username is: ", json_data["username"])
                     if self.check_login_credentials(json_data["username"], json_data["password"]):
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
@@ -197,6 +196,7 @@ class Server(group_manager.GroupManager):
                     group_name = parts[0]
                     admin_id = parts[1]
                     group_admin_id = self.get_user_id(admin_id)
+                    group_id = self.get_existing_group_id_by_name(group_name)
 
                     if group_admin_id:
                         if group_manager.GroupManager.create_group(self, group_name, group_admin_id):
@@ -215,8 +215,8 @@ class Server(group_manager.GroupManager):
                     user_to_add = parts[0]
                     group_to_add = parts[1]
                     client_id = parts[2]
-                    group_id = self.get_group_id_by_name(group_to_add)
-                    admin_id = self.get_group_admin(client_id)
+                    group_id = self.get_existing_group_id_by_name(group_to_add)
+                    admin_id = group_manager.GroupManager.get_group_admin(self, group_id)
                     user_id_to_add = self.get_user_id(user_to_add)
 
                     print(admin_id)
@@ -245,8 +245,8 @@ class Server(group_manager.GroupManager):
                     user_to_remove = parts[0]
                     group_to_remove = parts[1]
                     client_id = parts[2]
-                    group_id = self.get_group_id_by_name(group_to_remove)
-                    admin_id = self.get_group_admin(client_id)
+                    group_id = self.get_existing_group_id_by_name(group_to_remove)
+                    admin_id = group_manager.GroupManager.get_group_admin(self, client_id)
                     user_id_to_remove = self.get_user_id(user_to_remove)
 
                     if admin_id != client_id:
@@ -274,7 +274,7 @@ class Server(group_manager.GroupManager):
                     group_to_leave = parts[0]
                     next_admin = parts[1]
                     user_id = parts[2]
-                    group_id = self.get_group_id_by_name(group_to_leave)
+                    group_id = self.get_existing_group_id_by_name(group_to_leave)
                     leave_group_user_id = self.get_user_id(user_id)
                     next_admin_id = self.get_user_id(next_admin)
                     admin_in_group = self.user_in_group(next_admin_id, group_id)
@@ -298,10 +298,10 @@ class Server(group_manager.GroupManager):
                     parts = group_to_get_members_from.split("|")
                     group = parts[0]
                     client_id = parts[1]
-                    group_id = self.get_group_id_by_name(group)
+                    group_id = self.get_existing_group_id_by_name(group)
 
                     if self.user_in_group(client_id, group_id):
-                        group_members = group_manager.GroupManager.get_group_members(self, group_id)
+                        group_members = group_manager.GroupManager.get_group_members_id(self, group_id)
                         members = ""
                         for member in group_members:
                             member = str(member).strip("(), ")
@@ -337,15 +337,23 @@ class Server(group_manager.GroupManager):
                 group_to_send_data = client_socket.recv(512)
                 group_to_send_data = group_to_send_data.decode("utf8")
                 parts = group_to_send_data.split("|")
-                if len(parts) == 3:
-
-                    user_id = parts[0]
-                    group_name = parts[1]
-                    message = parts[2]
-                    group_id = self.get_group_id_by_name(group_name)
-
+                if len(parts) == 2:
+                    group_name = parts[0]
+                    user_id = parts[1]
+                    group_id = self.get_existing_group_id_by_name(group_name)
                     if self.user_in_group(user_id, group_id):
-                        group_manager.GroupManager.send_group_message(self, user_id, group_id, message, self.clients, self.clients)
+                        client_socket.send(bytes(f"!groupChat", "utf8"))
+                        while True:
+                            msg = client_socket.recv(512)
+                            message = msg.decode("utf-8")
+                            if msg == "!exit":
+                                break
+                            group_manager.GroupManager.insert_group_message(self, user_id, group_id, message)
+                            self.send_message_to_target(group_manager.GroupManager.get_group_members_id(self, group_id), user_id, message)
+                            if self.check_client_is_online(client_socket, message):
+                                pass
+                            else:
+                                break
                     else:
                         client_socket.send("You are not in this group.")
                 else:
@@ -379,21 +387,8 @@ class Server(group_manager.GroupManager):
         finally:
             lock.release()
 
-    def get_group_admin(self, client_id):
-        lock = threading.Lock()
-        try:
-            lock.acquire()
-            self.mycursor.execute("SELECT group_admin_id FROM GroupChats WHERE group_admin_id = %s", (client_id,))
-            admin_id = self.mycursor.fetchone()
-        finally:
-            lock.release()
-
-        if admin_id is not None:
-            return str(admin_id).strip("(), ")
-        else:
-            return False
-
-    def get_group_id_by_name(self, group_name):
+    def get_existing_group_id_by_name(self, group_name):
+        # Only use when the group already exists
         lock = threading.Lock()
         try:
             lock.acquire()
@@ -509,14 +504,15 @@ class Server(group_manager.GroupManager):
         else:
             return False
 
-    def send_message_to_target(self, receiver_id, sender_id, message):
+    def send_message_to_target(self, receiver_ids, sender_id, message):
         try:
             username = self.get_username(sender_id)
             if not username:
                 return False
-            receiver = self.clients[receiver_id]
-            receiver.send(bytes(f"{username}:{message}", "utf8"))
-        except KeyError as e:
+            for i in receiver_ids:
+                receiver = self.clients[i]
+                receiver.send(bytes(f"{username}:{message}", "utf8"))
+        except KeyError:
             print("User is not online")
 
     def get_username(self, client_id):
@@ -543,7 +539,7 @@ class Server(group_manager.GroupManager):
             self.mydb.commit()
         finally:
             lock.release()
-        self.send_message_to_target(receiver_id, sender_id, message)
+        self.send_message_to_target([receiver_id], sender_id, message)
 
     
 if __name__ == "__main__":

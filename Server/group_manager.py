@@ -18,6 +18,20 @@ class GroupManager:
         self.mycursor = self.mydb.cursor(buffered=True)
         self.mycursor.execute("USE consolechat")
 
+    def get_group_admin(self, group_id: int):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT admin_id FROM GroupChats WHERE group_id = %s", (group_id,))
+            admin_id = self.mycursor.fetchone()
+            admin_id_striped = str(admin_id).strip("(), ")
+            if admin_id is not None:
+                return admin_id_striped
+            else:
+                return False
+        finally:
+            lock.release()
+
     def create_group(self, group_name: str, admin_id: int) -> bool:
         lock = threading.Lock()
         try:
@@ -26,11 +40,25 @@ class GroupManager:
             self.mycursor.execute("SELECT group_name FROM GroupChats WHERE group_name = %s", (group_name,))
             group_name_already_exists = self.mycursor.fetchone()
             if group_name_already_exists is None:
-                self.mycursor.execute("INSERT INTO GroupChats (group_name, group_admin_id) VALUES (%s, %s)", (group_name, admin_id))
+                self.mycursor.execute("INSERT INTO GroupChats (group_name, admin_id) VALUES (%s, %s)", (group_name, admin_id))
+                self.mydb.commit()
+                user_id = admin_id
+                group_id = self.get_group_id_by_name(group_name)
+                self.mycursor.execute("INSERT INTO GroupMembers (group_id, user_id) VALUES (%s, %s)", (group_id, user_id))
                 self.mydb.commit()
                 return True
             else:
                 return False
+        finally:
+            lock.release()
+
+    def get_group_id_by_name(self, group_name: str) -> int:
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT group_id FROM GroupChats WHERE group_name = %s", (group_name,))
+            group_id = self.mycursor.fetchone()
+            return int(str(group_id).strip("(), "))
         finally:
             lock.release()
 
@@ -54,11 +82,8 @@ class GroupManager:
         lock = threading.Lock()
         try:
             lock.acquire()
-
-            self.mycursor.execute("SELECT group_admin_id FROM GroupChats WHERE group_id = %s", (group_id,))
-            admin_id = self.mycursor.fetchone()
-            admin_id_striped = str(admin_id).strip("(), ")
-            if admin_id_striped == user_id_to_remove:
+            admin_id = self.get_group_admin(group_id)
+            if admin_id == user_id_to_remove:
                 return False
             else:
                 self.mycursor.execute("DELETE FROM GroupMembers WHERE group_id = %s AND user_id = %s", (group_id, user_id_to_remove))
@@ -83,7 +108,7 @@ class GroupManager:
             lock.release()
         return True
 
-    def get_group_members(self, group_id: int) -> list:
+    def get_group_members_id(self, group_id: int) -> list:
         lock = threading.Lock()
         try:
             lock.acquire()
@@ -104,29 +129,14 @@ class GroupManager:
         finally:
             lock.release()
 
-    def get_username(self, user_id):
-        #lock = threading.Lock()
-        #try:
-         #   lock.acquire()
-          #  self.mycursor.execute("SELECT ")
-        pass
-
-    def send_group_message(self, sender_id: int, group_id: int, message: str, clients: dict, client_id: dict):
-        group_members = self.get_group_members(group_id)
-        members = ""
-        for member in group_members:
-            member = str(member).strip("(), ")
-            members = members + f"{member}|"
-
-        member_parts = members.split()
-        for i in member_parts:
-            for j in clients:
-                if clients[member_parts]:
-                    client_socket = clients[member_parts]
-
-                    client_socket.send(bytes(f""))
-
-        # Send a message to all members of a group
+    def insert_group_message(self, sender_id: int, group_id: int, message: str):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("INSERT INTO GroupChatHistory (group_id, sender_id, message) VALUES (%s, %s, %s)", (group_id, sender_id, message))
+            self.mydb.commit()
+        finally:
+            lock.release()
 
     def delete_group(self, group_id: int):
         pass
