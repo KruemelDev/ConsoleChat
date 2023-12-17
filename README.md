@@ -1,9 +1,7 @@
 # ConsoleChat
 ## Content in development -> errors may occur
 
-With this program you can connect to your self-hosted server and communicate with the other clients that are connected.<br>
-As you host your server, you are responsible for the content and security.<br>
-This messanger is not recommended for sending confidential data, such as passwords, etc. over it.<br>
+This program allows you to connect to your self-hosted server and communicate with other connected clients. As the host of your server, you bear responsibility for both content and security. Please note that this messenger is not advisable for transmitting sensitive information, such as passwords. <br> Exercise caution regarding the nature of the data shared.
 
 ## Functions
 
@@ -19,11 +17,11 @@ This messanger is not recommended for sending confidential data, such as passwor
   
 -  ## Install packages
     - Execute this to install requirements: ````pip install -r requirements.txt````
-         
+
+- Open and edit the [.env](Server/.env) file to configure your server properties
 - Now run the server.py file
 - Next, you can run the client.py file, but make sure you connect to the same IP and port that the socket is running on
 
 ## Planed Features
 
-- A chat history
-- Timeout for the user if he/she is afk for a long time
+- Group chat function
