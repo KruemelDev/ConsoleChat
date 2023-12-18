@@ -138,6 +138,15 @@ class GroupManager:
         finally:
             lock.release()
 
+    def group_exists(self, group_id):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("SELECT * FROM GroupChats WHERE group_id = %s", (group_id,))
+            result = self.mycursor.fetchone()
+            return result is not None
+        finally:
+            lock.release()
     def delete_group(self, group_id: int):
         pass
         # Delete a group and remove all members

@@ -132,7 +132,7 @@ class Client:
                             target_id = chat_member_ids_parts[0]
                             client_id = chat_member_ids_parts[1]
                             self.client_socket.send(bytes(target_id, "utf8"))
-                            self.chat(target_username, target_id, client_id, username)
+                            self.chat(target_username, target_id, client_id, username, 0)
                         else:
                             print("Sorry, this user does not exist, please enter another user name")
                             break
@@ -224,21 +224,26 @@ class Client:
                 answer = answer.decode("utf8")
 
                 if answer == "!groupChat":
-                    pass
+                    chat_data = self.client_socket.recv(256)
+                    chat_data = chat_data.decode("utf8").split(":")
+
+                    group_name = chat_data[0]
+                    group_id = chat_data[1]
+                    self.chat(group_name, group_id, client_id, username, group_id)
                 else:
-                    print(answer)
+                    print("antwort" + answer)
             elif commands == "!quit":
                 quit()
             else:
                 continue
 
-    def chat(self, chat_target_name, target_id, client_id, username):
+    def chat(self, chat_target_name, target_id, client_id, username, group_id):
         print("This is a chat with:", chat_target_name)
         for i in range(5):
             print("")
-
-        self.receive_and_display_chat_history(client_id, chat_target_name)
-        receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name,))
+        if group_id == 0:
+            self.receive_and_display_chat_history(client_id, chat_target_name)
+        receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name, group_id))
         receive_target_messages_process.start()
         while True:
             message = input(f"You to {chat_target_name}: ")
@@ -256,29 +261,32 @@ class Client:
 
         self.login_menu(username, client_id)
 
-    def recv_messages(self, chat_target_name):
+    def recv_messages(self, chat_target_name, group_id):
         while True:
             try:
 
                 chat_message = self.client_socket.recv(640)
                 chat_message_decoded = chat_message.decode("utf8")
                 split_message = chat_message_decoded.split(":")
-                message_owner = split_message[0]
-                message = split_message[1]
-                if not chat_message:
+                group_id_data = split_message[0]
+                message_owner = split_message[1]
+                message = split_message[2]
+                if not chat_message or chat_message == "!error":
                     print("Disconnected")
                     break
                 if chat_message_decoded == "":
                     continue
-                if chat_message_decoded and chat_message_decoded.startswith(chat_target_name):
-                    print(f"\n{chat_target_name}: {message}")
+                if str(message_owner) == str(chat_target_name) and (int(group_id_data) == 0 or int(group_id_data) == int(group_id)):
+                    print(f"\n{message_owner}: {message}")
                 else:
                     for i in range(1):
                         print("")
                     print(message_owner, "has sent you a message")
                     for i in range(1):
                         print("")
+
             except ConnectionResetError:
+                print("Cant connect to server")
                 continue
 
     @staticmethod
@@ -291,9 +299,9 @@ class Client:
         chat_history_decoded = chat_history.decode("utf-8")
         eval_list = ast.literal_eval(chat_history_decoded)
         chat_history_list = [[tup for tup in item] for item in eval_list]
-        reserve_chat_history_list = self.reverse_list(chat_history_list)
+        reverse_chat_history_list = self.reverse_list(chat_history_list)
 
-        for i in reserve_chat_history_list:
+        for i in reverse_chat_history_list:
             striped_client_id = client_id.strip("(),")
 
             if str(striped_client_id) == str(i[1]):

@@ -1,6 +1,8 @@
 import socket
 import threading
 import json
+import time
+
 import group_manager
 import mysql.connector
 import os
@@ -169,6 +171,7 @@ class Server(group_manager.GroupManager):
                 chat_history = self.get_chat_history(self.client_id[client_socket], target_id)
                 try:
                     client_socket.send(bytes(str(chat_history), "utf8"))
+                    print(str(chat_history))
                 except BrokenPipeError:
                     print("Cannot send chat history")
 
@@ -196,7 +199,6 @@ class Server(group_manager.GroupManager):
                     group_name = parts[0]
                     admin_id = parts[1]
                     group_admin_id = self.get_user_id(admin_id)
-                    group_id = self.get_existing_group_id_by_name(group_name)
 
                     if group_admin_id:
                         if group_manager.GroupManager.create_group(self, group_name, group_admin_id):
@@ -216,6 +218,11 @@ class Server(group_manager.GroupManager):
                     group_to_add = parts[1]
                     client_id = parts[2]
                     group_id = self.get_existing_group_id_by_name(group_to_add)
+                    if group_manager.GroupManager.group_exists(self, group_id):
+                        pass
+                    else:
+                        client_socket.send(bytes("This group does not exist", "utf8"))
+                        continue
                     admin_id = group_manager.GroupManager.get_group_admin(self, group_id)
                     user_id_to_add = self.get_user_id(user_to_add)
 
@@ -224,10 +231,13 @@ class Server(group_manager.GroupManager):
 
                     if admin_id != client_id:
                         client_socket.send(bytes(f"You are not the owner of the group {group_to_add}", "utf8"))
+                        continue
                     elif not user_id_to_add:
                         client_socket.send(bytes("This user does not exist", "utf8"))
+                        continue
                     elif not group_id:
                         client_socket.send(bytes("This group does not exist", "utf8"))
+                        continue
                     else:
                         if group_manager.GroupManager.add_user_to_group(self, group_id, user_id_to_add):
                             client_socket.send(bytes(f"User was successfully added to {group_to_add}", "utf8"))
@@ -251,17 +261,22 @@ class Server(group_manager.GroupManager):
 
                     if admin_id != client_id:
                         client_socket.send(bytes(f"You are not the owner of the group {group_to_remove}", "utf8"))
+                        continue
                     elif not user_id_to_remove:
                         client_socket.send(bytes("This user does not exist", "utf8"))
+                        continue
                     elif not group_id:
                         client_socket.send(bytes("This group does not exist", "utf8"))
+                        continue
                     elif not self.user_in_group(user_id_to_remove, group_id):
                         client_socket.send(bytes("This user is not in your group", "utf8"))
+                        continue
                     else:
                         if group_manager.GroupManager.remove_user_from_group(self, group_id, user_id_to_remove):
                             client_socket.send(bytes(f"User was successfully removed from the group {group_to_remove}", "utf8"))
                         else:
                             client_socket.send(bytes("You cannot remove yourself of your group you need to leave your group", "utf8"))
+                            continue
 
                 except (IndexError, UnicodeDecodeError):
                     client_socket.send(bytes("An error occurred while adding user to group", "utf8"))
@@ -274,7 +289,14 @@ class Server(group_manager.GroupManager):
                     group_to_leave = parts[0]
                     next_admin = parts[1]
                     user_id = parts[2]
+
                     group_id = self.get_existing_group_id_by_name(group_to_leave)
+                    if group_manager.GroupManager.group_exists(self, group_id):
+                        pass
+                    else:
+                        client_socket.send(bytes("This group does not exist", "utf8"))
+                        continue
+
                     leave_group_user_id = self.get_user_id(user_id)
                     next_admin_id = self.get_user_id(next_admin)
                     admin_in_group = self.user_in_group(next_admin_id, group_id)
@@ -299,7 +321,11 @@ class Server(group_manager.GroupManager):
                     group = parts[0]
                     client_id = parts[1]
                     group_id = self.get_existing_group_id_by_name(group)
-
+                    if group_manager.GroupManager.group_exists(self, group_id):
+                        pass
+                    else:
+                        client_socket.send(bytes("This group does not exist", "utf8"))
+                        continue
                     if self.user_in_group(client_id, group_id):
                         group_members = group_manager.GroupManager.get_group_members_id(self, group_id)
                         members = ""
@@ -310,9 +336,10 @@ class Server(group_manager.GroupManager):
                         client_socket.send(bytes(members, "utf8"))
                     else:
                         client_socket.send(bytes("You are not in this group or this group does not exist", "utf8"))
+                        continue
 
                 except (IndexError, UnicodeDecodeError):
-                    client_socket.send(bytes("An error occurred while leaving the group", "utf8"))
+                    client_socket.send(bytes("An error occurred while trying to get all the users of the group", "utf8"))
 
             if received_data.startswith("!get_user_groups") and client_login:
                 client_id = client_socket.recv(512)
@@ -328,10 +355,13 @@ class Server(group_manager.GroupManager):
                         group_list = group_list + f"{group_name}|"
 
                     print(group_list)
-                    client_socket.send(bytes(group_list, "utf8"))
+                    if len(group_list) == 0:
+                        client_socket.send(bytes("You are in no groups", "utf8"))
+                    else:
+                        client_socket.send(bytes(group_list, "utf8"))
 
                 except (IndexError, UnicodeDecodeError):
-                    client_socket.send(bytes("An error occurred while leaving the group", "utf8"))
+                    client_socket.send(bytes("An error occurred while trying to get the groups of a user", "utf8"))
             # have to be overworked
             if received_data.startswith("!group_chat") and client_login:
                 group_to_send_data = client_socket.recv(512)
@@ -342,20 +372,39 @@ class Server(group_manager.GroupManager):
                     user_id = parts[1]
                     group_id = self.get_existing_group_id_by_name(group_name)
                     if self.user_in_group(user_id, group_id):
-                        client_socket.send(bytes(f"!groupChat", "utf8"))
-                        while True:
-                            msg = client_socket.recv(512)
-                            message = msg.decode("utf-8")
-                            if msg == "!exit":
-                                break
-                            group_manager.GroupManager.insert_group_message(self, user_id, group_id, message)
-                            self.send_message_to_target(group_manager.GroupManager.get_group_members_id(self, group_id), user_id, message)
-                            if self.check_client_is_online(client_socket, message):
-                                pass
-                            else:
-                                break
+                        if group_manager.GroupManager.group_exists(self, group_id):
+                            client_socket.send(bytes(f"!groupChat", "utf8"))
+                            time.sleep(0.1)
+                            client_socket.send(bytes(group_name + ":" + str(group_id), "utf8"))
+                            while True:
+                                msg = client_socket.recv(512)
+                                msg = msg.decode("utf-8")
+                                try:
+                                    msg = msg.split("|")
+                                    group_id = msg[0]
+                                    user_id = msg[1]
+                                    message = msg[2]
+                                    if message == "!exit":
+                                        break
+                                except IndexError:
+                                    client_socket.send(bytes("!error", "utf8"))
+                                    break
+
+                                if message == "!exit":
+                                    break
+
+                                group_manager.GroupManager.insert_group_message(self, user_id, group_id, message)
+                                self.send_message_to_target(group_manager.GroupManager.get_group_members_id(self, group_id),
+                                                            user_id, message, group_id)
+
+                                if not self.check_client_is_online(client_socket, msg):
+                                    break
+                            return False
+                        else:
+                            client_socket.send(bytes("This group does not exist", "utf8"))
+                            continue
                     else:
-                        client_socket.send("You are not in this group.")
+                        client_socket.send(bytes("You are not in this group.", "utf8"))
                 else:
                     client_socket.send("An error occurred while sending the message.")
 
@@ -383,7 +432,8 @@ class Server(group_manager.GroupManager):
             lock.acquire()
             self.mycursor.execute("SELECT user_id FROM GroupMembers WHERE user_id = %s AND group_id = %s", (user_id, group_id))
             result = self.mycursor.fetchone()
-            return result is not None
+            print("result" + str(result).strip("(), "))
+            return str(result) is not None
         finally:
             lock.release()
 
@@ -504,14 +554,14 @@ class Server(group_manager.GroupManager):
         else:
             return False
 
-    def send_message_to_target(self, receiver_ids, sender_id, message):
+    def send_message_to_target(self, receiver_ids, sender_id, message, group_id):
         try:
             username = self.get_username(sender_id)
             if not username:
                 return False
             for i in receiver_ids:
                 receiver = self.clients[i]
-                receiver.send(bytes(f"{username}:{message}", "utf8"))
+                receiver.send(bytes(f"{group_id}:{username}:{message}", "utf8"))
         except KeyError:
             print("User is not online")
 
@@ -539,13 +589,10 @@ class Server(group_manager.GroupManager):
             self.mydb.commit()
         finally:
             lock.release()
-        self.send_message_to_target([receiver_id], sender_id, message)
+        self.send_message_to_target([receiver_id], sender_id, message, 0)
 
     
 if __name__ == "__main__":
     server = Server()
     server.start_server()
-    while True:
-        commands = input("Type stop to stop the server")
-        if commands == "stop":
-            quit()
+    
