@@ -555,15 +555,20 @@ class Server(group_manager.GroupManager):
             return False
 
     def send_message_to_target(self, receiver_ids, sender_id, message, group_id):
-        try:
-            username = self.get_username(sender_id)
-            if not username:
-                return False
-            for i in receiver_ids:
-                receiver = self.clients[i]
-                receiver.send(bytes(f"{group_id}:{username}:{message}", "utf8"))
-        except KeyError:
-            print("User is not online")
+        ids = [item[0] for item in receiver_ids]
+        for i in range(len(ids)):
+            try:
+                username = self.get_username(sender_id)
+                if not username:
+                    return False
+
+                for j in ids:
+                    if j == sender_id:
+                        continue
+                    receiver = self.clients[j]
+                    receiver.send(bytes(f"{group_id}:{username}:{message}", "utf8"))
+            except KeyError:
+                print("User is not online")
 
     def get_username(self, client_id):
         lock = threading.Lock()

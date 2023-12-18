@@ -114,7 +114,7 @@ class GroupManager:
             lock.acquire()
             self.mycursor.execute("SELECT user_id FROM GroupMembers WHERE group_id = %s", (group_id,))
             members = self.mycursor.fetchall()
-            return members
+            return list(members)
         finally:
             lock.release()
 
