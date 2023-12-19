@@ -271,12 +271,13 @@ class Client:
                 group_id_data = split_message[0]
                 message_owner = split_message[1]
                 message = split_message[2]
+                group_name = split_message[3]
                 if not chat_message or chat_message == "!error":
                     print("Disconnected")
                     break
                 if chat_message_decoded == "":
                     continue
-                if str(message_owner) == str(chat_target_name) and (int(group_id_data) == 0 or int(group_id_data) == int(group_id)):
+                if str(message_owner) == str(chat_target_name) and (int(group_id_data) == 0):
                     print(f"\n{message_owner}: {message}")
                 else:
                     for i in range(1):
@@ -284,6 +285,11 @@ class Client:
                     print(message_owner, "has sent you a message")
                     for i in range(1):
                         print("")
+
+                if group_id == group_id_data:
+                    print(f"\n{message_owner}: {message}")
+                else:
+                    print("A message was sent in " + group_name)
 
             except ConnectionResetError:
                 print("Cant connect to server")

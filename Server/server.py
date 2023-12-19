@@ -395,7 +395,7 @@ class Server(group_manager.GroupManager):
 
                                 group_manager.GroupManager.insert_group_message(self, user_id, group_id, message)
                                 self.send_message_to_target(group_manager.GroupManager.get_group_members_id(self, group_id),
-                                                            user_id, message, group_id)
+                                                            user_id, message, group_id, self.get_group_name(group_id))
 
                                 if not self.check_client_is_online(client_socket, msg):
                                     break
@@ -554,8 +554,12 @@ class Server(group_manager.GroupManager):
         else:
             return False
 
-    def send_message_to_target(self, receiver_ids, sender_id, message, group_id):
-        ids = [item[0] for item in receiver_ids]
+    def send_message_to_target(self, receiver_ids, sender_id, message, group_id, group_name=None):
+        ids = None
+        if "(" in str(receiver_ids):
+            ids = [item[0] for item in receiver_ids]
+        else:
+            ids = list(receiver_ids)
         for i in range(len(ids)):
             try:
                 username = self.get_username(sender_id)
@@ -566,7 +570,10 @@ class Server(group_manager.GroupManager):
                     if j == sender_id:
                         continue
                     receiver = self.clients[j]
-                    receiver.send(bytes(f"{group_id}:{username}:{message}", "utf8"))
+                    if group_id == 0:
+                        receiver.send(bytes(f"{group_id}:{username}:{message}", "utf8"))
+                    else:
+                        receiver.send(bytes(f"{group_id}:{username}:{message}:{group_name}", "utf8"))
             except KeyError:
                 print("User is not online")
 
