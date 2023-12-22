@@ -4,7 +4,6 @@ import hashlib
 import json
 import ast
 import multiprocessing
-import time
 
 
 class Client:
@@ -119,7 +118,6 @@ class Client:
                     if target_username == "!quit":
                         quit()
                     if not target_username == "" or None:
-
                         self.client_socket.send(bytes(target_username, "utf-8"))
                         server_answer = self.client_socket.recv(1024).decode("utf-8")
                         if server_answer == "!user exists":
@@ -202,7 +200,6 @@ class Client:
 
             elif commands == "groups":
                 self.client_socket.send(bytes("!get_user_groups", "utf8"))
-                time.sleep(0.1)
                 self.client_socket.send(bytes(client_id, "utf8"))
                 answer = self.client_socket.recv(512)
                 answer = answer.decode("utf8")
@@ -231,7 +228,7 @@ class Client:
                     group_id = chat_data[1]
                     self.chat(group_name, group_id, client_id, username, group_id)
                 else:
-                    print("antwort" + answer)
+                    print(answer)
             elif commands == "!quit":
                 quit()
             else:
@@ -243,7 +240,7 @@ class Client:
             print("")
         if group_id == 0:
             self.receive_and_display_chat_history(client_id, chat_target_name)
-        receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name, group_id))
+        receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name, group_id, username))
         receive_target_messages_process.start()
         while True:
             message = input(f"You to {chat_target_name}: ")
@@ -261,7 +258,7 @@ class Client:
 
         self.login_menu(username, client_id)
 
-    def recv_messages(self, chat_target_name, group_id):
+    def recv_messages(self, chat_target_name, group_id, username):
         while True:
             try:
 
@@ -277,18 +274,22 @@ class Client:
                     break
                 if chat_message_decoded == "":
                     continue
-                if str(message_owner) == str(chat_target_name) and (int(group_id_data) == 0):
+
+                if message_owner == username:
+                    continue
+                if str(message_owner) == str(chat_target_name) and int(group_id_data) == 0:
                     print(f"\n{message_owner}: {message}")
-                else:
+                elif message_owner != chat_target_name and int(group_id_data) == 0:
                     for i in range(1):
                         print("")
                     print(message_owner, "has sent you a message")
                     for i in range(1):
                         print("")
+                    continue
 
                 if group_id == group_id_data:
                     print(f"\n{message_owner}: {message}")
-                else:
+                elif group_id != 0:
                     print("A message was sent in " + group_name)
 
             except ConnectionResetError:

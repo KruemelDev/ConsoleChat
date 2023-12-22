@@ -1,7 +1,6 @@
 import socket
 import threading
 import json
-import time
 
 import group_manager
 import mysql.connector
@@ -374,7 +373,6 @@ class Server(group_manager.GroupManager):
                     if self.user_in_group(user_id, group_id):
                         if group_manager.GroupManager.group_exists(self, group_id):
                             client_socket.send(bytes(f"!groupChat", "utf8"))
-                            time.sleep(0.1)
                             client_socket.send(bytes(group_name + ":" + str(group_id), "utf8"))
                             while True:
                                 msg = client_socket.recv(512)
@@ -555,27 +553,26 @@ class Server(group_manager.GroupManager):
             return False
 
     def send_message_to_target(self, receiver_ids, sender_id, message, group_id, group_name=None):
-        ids = None
         if "(" in str(receiver_ids):
             ids = [item[0] for item in receiver_ids]
         else:
             ids = list(receiver_ids)
-        for i in range(len(ids)):
-            try:
-                username = self.get_username(sender_id)
-                if not username:
-                    return False
 
-                for j in ids:
-                    if j == sender_id:
-                        continue
-                    receiver = self.clients[j]
-                    if group_id == 0:
-                        receiver.send(bytes(f"{group_id}:{username}:{message}", "utf8"))
-                    else:
-                        receiver.send(bytes(f"{group_id}:{username}:{message}:{group_name}", "utf8"))
-            except KeyError:
-                print("User is not online")
+        try:
+            username = self.get_username(sender_id)
+            if not username:
+                return False
+
+            for j in ids:
+                if j == sender_id:
+                    continue
+                receiver = self.clients[j]
+                if group_id == 0:
+                    receiver.send(bytes(f"{group_id}:{username}:{message}:{group_name}", "utf8"))
+                else:
+                    receiver.send(bytes(f"{group_id}:{username}:{message}:{group_name}", "utf8"))
+        except KeyError:
+            print("User is not online")
 
     def get_username(self, client_id):
         lock = threading.Lock()
