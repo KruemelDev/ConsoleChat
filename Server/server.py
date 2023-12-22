@@ -377,18 +377,16 @@ class Server(group_manager.GroupManager):
                             while True:
                                 msg = client_socket.recv(512)
                                 msg = msg.decode("utf-8")
+                                if msg == "!exit":
+                                    break
                                 try:
                                     msg = msg.split("|")
                                     group_id = msg[0]
                                     user_id = msg[1]
                                     message = msg[2]
-                                    if message == "!exit":
-                                        break
+
                                 except IndexError:
                                     client_socket.send(bytes("!error", "utf8"))
-                                    break
-
-                                if message == "!exit":
                                     break
 
                                 group_manager.GroupManager.insert_group_message(self, user_id, group_id, message)
@@ -397,7 +395,7 @@ class Server(group_manager.GroupManager):
 
                                 if not self.check_client_is_online(client_socket, msg):
                                     break
-                            return False
+                            continue
                         else:
                             client_socket.send(bytes("This group does not exist", "utf8"))
                             continue
