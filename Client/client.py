@@ -222,13 +222,13 @@ class Client:
 
                 if answer == "!groupChat":
                     chat_data = self.client_socket.recv(256)
-                    chat_data = chat_data.decode("utf8").split(":")
+                    chat_data = chat_data.decode("utf8").split("|")
 
                     group_name = chat_data[0]
                     group_id = chat_data[1]
                     self.chat(group_name, group_id, client_id, username, group_id)
                 else:
-                    print(answer)
+                    print("antwort: " + answer)
             elif commands == "!quit":
                 quit()
             else:
@@ -238,8 +238,11 @@ class Client:
         print("This is a chat with:", chat_target_name)
         for i in range(5):
             print("")
-        if group_id == 0:
+        if int(group_id) == 0:
             self.receive_and_display_chat_history(client_id, chat_target_name)
+        elif int(group_id) > 0:
+            self.receive_and_display_chat_history_group(client_id)
+
         receive_target_messages_process = multiprocessing.Process(target=self.recv_messages, args=(chat_target_name, group_id, username))
         receive_target_messages_process.start()
         while True:
@@ -301,9 +304,20 @@ class Client:
         reverse_list = input_list[::-1]
         return reverse_list
 
+    def receive_and_display_chat_history_group(self, group_id):
+        chat_history = self.client_socket.recv(8192)
+        chat_history_decoded = chat_history.decode("utf-8")
+        eval_list = ast.literal_eval(chat_history_decoded)
+        chat_history_list = [[tup for tup in item] for item in eval_list]
+        reverse_chat_history_list = self.reverse_list(chat_history_list)
+
+        for i in reverse_chat_history_list:
+            print(i[0] + ": " + i[1])
+
     def receive_and_display_chat_history(self, client_id, chat_target_name):
         chat_history = self.client_socket.recv(8192)
         chat_history_decoded = chat_history.decode("utf-8")
+        print(chat_history_decoded)
         eval_list = ast.literal_eval(chat_history_decoded)
         chat_history_list = [[tup for tup in item] for item in eval_list]
         reverse_chat_history_list = self.reverse_list(chat_history_list)

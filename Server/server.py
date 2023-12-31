@@ -1,6 +1,7 @@
 import socket
 import threading
 import json
+import time
 
 import group_manager
 import mysql.connector
@@ -40,7 +41,10 @@ class Server(group_manager.GroupManager):
             print("Cant connect to database. Make sure your database is running and you use the correct password.")
 
         self.mycursor = self.mydb.cursor(buffered=True)
-        self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
+        try:
+            self.mycursor.execute("CREATE DATABASE IF NOT EXISTS consolechat")
+        except mysql.connector.errors:
+            print("An issue occurred. Try to create the consolechat database manually")
         self.mycursor.execute("USE consolechat")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS Users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(255), password VARCHAR(255), ip VARCHAR(255), port INT(255))")
         self.mycursor.execute("CREATE TABLE IF NOT EXISTS ChatHistory (id INT AUTO_INCREMENT PRIMARY KEY, receiver_id INT, sender_id INT, message VARCHAR(512))")
@@ -373,8 +377,19 @@ class Server(group_manager.GroupManager):
                     if self.user_in_group(user_id, group_id):
                         if group_manager.GroupManager.group_exists(self, group_id):
                             client_socket.send(bytes(f"!groupChat", "utf8"))
-                            client_socket.send(bytes(group_name + ":" + str(group_id), "utf8"))
+                            time.sleep(0.1)
+                            client_socket.send(bytes(group_name + "|" + str(group_id), "utf8"))
+                            chat_history = group_manager.GroupManager.get_chat_history_for_groups(self, group_id)
+                            try:
+                                client_socket.send(bytes(str(chat_history), "utf8"))
+                                print(str(chat_history))
+                            except BrokenPipeError:
+                                print("Cannot send chat history")
+                            except Exception as e:
+                                print("none werqwer")
+
                             while True:
+                                print("while true oben")
                                 msg = client_socket.recv(512)
                                 msg = msg.decode("utf-8")
                                 if msg == "!exit":
@@ -471,7 +486,7 @@ class Server(group_manager.GroupManager):
         try:
             lock.acquire()
             self.mycursor.execute(
-                "SELECT receiver_id, sender_id, message FROM ChatHistory WHERE (receiver_id = %s AND sender_id = %s) OR (receiver_id = %s AND sender_id = %s) ORDER BY id DESC LIMIT 15",
+                "SELECT receiver_id, sender_id, message FROM ChatHistory WHERE (receiver_id = %s AND sender_id = %s) OR (receiver_id = %s AND sender_id = %s) ORDER BY id DESC LIMIT 20",
                 (client_id, other_client_id, other_client_id, client_id))
             chat_history = self.mycursor.fetchall()
         finally:

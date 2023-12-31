@@ -102,7 +102,7 @@ class GroupManager:
             self.mycursor.execute("DELETE FROM GroupMembers WHERE group_id = %s AND user_id = %s", (group_id, user_id))
             self.mydb.commit()
 
-            self.mycursor.execute("UPDATE GroupChats SET group_admin_id = %s WHERE group_id = %s", (new_admin_id, group_id))
+            self.mycursor.execute("UPDATE GroupChats SET admin_id = %s WHERE group_id = %s", (new_admin_id, group_id))
             self.mydb.commit()
         finally:
             lock.release()
@@ -147,6 +147,28 @@ class GroupManager:
             return result is not None
         finally:
             lock.release()
+
+    def get_chat_history_for_groups(self, group_id):
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+
+            query = """
+            SELECT Users.username, GroupChatHistory.message
+            From GroupChats
+            JOIN GroupMembers ON GroupChats.group_id = GroupMembers.group_id
+            JOIN Users ON GroupMembers.user_id = Users.id
+            JOIN GroupChatHistory ON GroupChats.group_id = GroupChatHistory.group_id
+            WHERE GroupChats.group_id = %s AND Users.id = GroupChatHistory.sender_id
+            ORDER BY GroupChatHistory.id DESC LIMIT 30
+            """
+            self.mycursor.execute(query, (group_id,))
+            result = self.mycursor.fetchall()
+            print(result)
+            return result
+        finally:
+            lock.release()
+
     def delete_group(self, group_id: int):
         pass
         # Delete a group and remove all members
