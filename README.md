@@ -25,4 +25,3 @@ This program allows you to connect to your self-hosted server and communicate wi
 
 ## Planed Features
 
-- Group chat function
