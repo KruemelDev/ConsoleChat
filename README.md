@@ -20,8 +20,8 @@ This program allows you to connect to your self-hosted server and communicate wi
 
 - Open and edit the [.env](Server/.env) file to configure your server properties
 - Now run the server.py file
+- Create a database with the name consolechat
 - Next, you can run the client.py file, but make sure you connect to the same IP and port that the socket is running on
 
 ## Planed Features
 
-- Group chat function
