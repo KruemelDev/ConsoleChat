@@ -228,7 +228,16 @@ class Client:
                     group_id = chat_data[1]
                     self.chat(group_name, group_id, client_id, username, group_id)
                 else:
-                    print("antwort: " + answer)
+                    print(answer)
+
+            elif commands == "deleteGroup":
+                self.client_socket.send(bytes("!delete_group", "utf8"))
+                group_to_delete = input("Which group do you want to delete: ")
+                self.client_socket.send(bytes(f"{group_to_delete}|{client_id}", "utf8"))
+                answer = self.client_socket.recv(512)
+                answer = answer.decode("utf8")
+                print(answer)
+
             elif commands == "!quit":
                 quit()
             else:
@@ -264,7 +273,6 @@ class Client:
     def recv_messages(self, chat_target_name, group_id, username):
         while True:
             try:
-
                 chat_message = self.client_socket.recv(640)
                 chat_message_decoded = chat_message.decode("utf8")
                 split_message = chat_message_decoded.split(":")
@@ -317,7 +325,6 @@ class Client:
     def receive_and_display_chat_history(self, client_id, chat_target_name):
         chat_history = self.client_socket.recv(8192)
         chat_history_decoded = chat_history.decode("utf-8")
-        print(chat_history_decoded)
         eval_list = ast.literal_eval(chat_history_decoded)
         chat_history_list = [[tup for tup in item] for item in eval_list]
         reverse_chat_history_list = self.reverse_list(chat_history_list)

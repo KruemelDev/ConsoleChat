@@ -170,5 +170,14 @@ class GroupManager:
             lock.release()
 
     def delete_group(self, group_id: int):
-        pass
-        # Delete a group and remove all members
+        lock = threading.Lock()
+        try:
+            lock.acquire()
+            self.mycursor.execute("DELETE FROM GroupChatHistory WHERE group_id = %s", (group_id,))
+            self.mycursor.execute("DELETE FROM GroupMembers WHERE group_id = %s", (group_id,))
+            self.mycursor.execute("DELETE FROM GroupChats WHERE group_id = %s", (group_id,))
+            self.mydb.commit()
+            return True
+        finally:
+            lock.release()
+

@@ -90,7 +90,6 @@ class Server(group_manager.GroupManager):
                 if self.check_client_is_online(client_socket, signin_credentials):
                     signin_credentials = signin_credentials.decode("utf-8")
                     json_data = json.loads(signin_credentials)
-                    print(json_data)
                     if self.check_login_credentials(json_data["username"], json_data["password"]):
                         try:
                             client_socket.send(bytes("!successful", "utf8"))
@@ -111,7 +110,6 @@ class Server(group_manager.GroupManager):
                 check_register_credentials = client_socket.recv(1024)
                 if self.check_client_is_online(client_socket, check_register_credentials):
                     json_data = json.loads(check_register_credentials)
-                    print(json_data)
                     if self.is_user_registered(json_data["username"]):
                         print("function is user registered reached")
                         try:
@@ -147,7 +145,6 @@ class Server(group_manager.GroupManager):
                             chat_members_parts = chat_members.split("|")
 
                             target_username = chat_members_parts[0]
-                            print(target_username)
                             username = chat_members_parts[1]
                             ids = self.get_chat_member_ids(target_username, username)
                             target_id = ids[0]
@@ -170,11 +167,9 @@ class Server(group_manager.GroupManager):
 
                 target_id = client_socket.recv(256)
                 target_id = str(target_id.decode("utf-8")).strip("(), ")
-                print("target id:", target_id)
                 chat_history = self.get_chat_history(self.client_id[client_socket], target_id)
                 try:
                     client_socket.send(bytes(str(chat_history), "utf8"))
-                    print(str(chat_history))
                 except BrokenPipeError:
                     print("Cannot send chat history")
 
@@ -229,9 +224,6 @@ class Server(group_manager.GroupManager):
                     admin_id = group_manager.GroupManager.get_group_admin(self, group_id)
                     user_id_to_add = self.get_user_id(user_to_add)
 
-                    print(admin_id)
-                    print(client_id)
-
                     if admin_id != client_id:
                         client_socket.send(bytes(f"You are not the owner of the group {group_to_add}", "utf8"))
                         continue
@@ -259,7 +251,7 @@ class Server(group_manager.GroupManager):
                     group_to_remove = parts[1]
                     client_id = parts[2]
                     group_id = self.get_existing_group_id_by_name(group_to_remove)
-                    admin_id = group_manager.GroupManager.get_group_admin(self, client_id)
+                    admin_id = group_manager.GroupManager.get_group_admin(self, group_id)
                     user_id_to_remove = self.get_user_id(user_to_remove)
 
                     if admin_id != client_id:
@@ -349,15 +341,12 @@ class Server(group_manager.GroupManager):
                 client_id = client_id.decode("utf8")
                 try:
                     groups = group_manager.GroupManager.get_user_groups(self, client_id)
-                    print(groups)
                     group_list = ""
                     for group in groups:
                         group = str(group).strip("(), ")
                         group_name = self.get_group_name(group)
-                        print(group_name)
                         group_list = group_list + f"{group_name}|"
 
-                    print(group_list)
                     if len(group_list) == 0:
                         client_socket.send(bytes("You are in no groups", "utf8"))
                     else:
@@ -382,14 +371,12 @@ class Server(group_manager.GroupManager):
                             chat_history = group_manager.GroupManager.get_chat_history_for_groups(self, group_id)
                             try:
                                 client_socket.send(bytes(str(chat_history), "utf8"))
-                                print(str(chat_history))
                             except BrokenPipeError:
                                 print("Cannot send chat history")
                             except Exception as e:
-                                print("none werqwer")
+                                print(str(e))
 
                             while True:
-                                print("while true oben")
                                 msg = client_socket.recv(512)
                                 msg = msg.decode("utf-8")
                                 if msg == "!exit":
@@ -404,7 +391,7 @@ class Server(group_manager.GroupManager):
                                     client_socket.send(bytes("!error", "utf8"))
                                     break
 
-                                group_manager.GroupManager.insert_group_message(self, user_id, group_id, message)
+                                group_manager.GroupManager.insert_group_message(self, int(str(user_id.strip("(),"))), int(str(group_id).strip("(),")), message)
                                 self.send_message_to_target(group_manager.GroupManager.get_group_members_id(self, group_id),
                                                             user_id, message, group_id, self.get_group_name(group_id))
 
@@ -420,7 +407,29 @@ class Server(group_manager.GroupManager):
                     client_socket.send("An error occurred while sending the message.")
 
             if received_data.startswith("!delete_group") and client_login:
-                pass
+                delete_group_data = client_socket.recv(512)
+                delete_group_data = delete_group_data.decode("utf8")
+                try:
+                    parts = delete_group_data.split("|")
+                    group_to_delete = parts[0]
+                    client_id = parts[1]
+                    group_id = self.get_existing_group_id_by_name(group_to_delete)
+                    admin_id = group_manager.GroupManager.get_group_admin(self, group_id)
+
+                    if admin_id != client_id:
+                        client_socket.send(bytes(f"You are not the owner of the group {group_to_delete}", "utf8"))
+                        continue
+                    elif not group_id:
+                        client_socket.send(bytes("This group does not exist", "utf8"))
+                        continue
+                    elif admin_id == client_id:
+                        if group_manager.GroupManager.delete_group(self, group_id):
+                            client_socket.send(bytes(f"Group was successfully deleted", "utf8"))
+                        else:
+                            client_socket.send(bytes("An error occurred while trying to delete your group", "utf8"))
+
+                except (IndexError, UnicodeDecodeError):
+                    client_socket.send(bytes("An error occurred while adding user to group", "utf8"))
 
             self.check_client_is_online(client_socket, received_data)
 
@@ -575,15 +584,20 @@ class Server(group_manager.GroupManager):
             username = self.get_username(sender_id)
             if not username:
                 return False
-
+            print(message)
             for j in ids:
                 if j == sender_id:
                     continue
+
                 receiver = self.clients[j]
                 if group_id == 0:
                     receiver.send(bytes(f"{group_id}:{username}:{message}:{group_name}", "utf8"))
                 else:
-                    receiver.send(bytes(f"{group_id}:{username}:{message}:{group_name}", "utf8"))
+
+                    try:
+                        receiver.send(bytes(f"{group_id}:{username}:{message}:{group_name}", "utf8"))
+                    except Exception as e:
+                        print("fehler" + str(e))
         except KeyError:
             print("User is not online")
 
@@ -596,7 +610,6 @@ class Server(group_manager.GroupManager):
             lock.release()
         username = self.mycursor.fetchone()
         username = str(username).strip("(),' ")
-        print(username)
         if username is None:
             return False
         else:
