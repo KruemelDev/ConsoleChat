@@ -24,3 +24,4 @@ This program allows you to connect to your self-hosted server and communicate wi
 - Next, you can run the client.py file, but make sure you connect to the same IP and port that the socket is running on
 
 ## Planed Features
+- Complete revision of the code due to numerous bugs, uncertainty and illegibility of the code
